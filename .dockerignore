@@ -1,0 +1,9 @@
+node_modules
+.pnpm-store
+.git
+.env
+data
+qa-data
+dist
+*.sqlite*
+*.log

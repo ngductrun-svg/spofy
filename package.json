@@ -1,0 +1,32 @@
+{
+  "name": "spofy-science",
+  "version": "2.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:ui": "vite --host 127.0.0.1",
+    "start": "node --env-file-if-exists=.env server/index.mjs",
+    "admin:create": "node --env-file-if-exists=.env server/create-admin.mjs",
+    "build:admin": "node scripts/build-admin-helper.mjs",
+    "test": "node --test server-tests/*.test.mjs",
+    "check:data": "node scripts/verify-data-export.mjs",
+    "build": "node scripts/verify-data-export.mjs && vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@designcodeio/threeui": "1.2.0",
+    "@netlify/database": "2.0.1",
+    "@netlify/blobs": "11.1.4",
+    "katex": "0.19.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "three": "0.149.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.10",
+    "vite": "7.3.1"
+  },
+  "engines": { "node": ">=24.15.0" }
+}

@@ -1,0 +1,16 @@
+services:
+  spofy:
+    build: .
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN to your HTTPS website origin}
+      DATA_DIR: /data
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - spofy-data:/data
+    restart: unless-stopped
+volumes:
+  spofy-data:

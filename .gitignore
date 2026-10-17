@@ -1,0 +1,11 @@
+node_modules/
+.pnpm-store/
+.netlify/
+.env
+data/
+dist/
+qa-data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
