@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
-export type User = { id: string; email: string; name: string; role: 'admin' | 'reader' };
+export type User = { id: string; email: string; name: string; role: 'admin' | 'reader'; emailVerified?: boolean | null };
+export type AuthCapabilities = { emailConfigured: boolean; verificationRequired: boolean; passwordBreachCheck: 'local-blocklist' | 'hibp' };
 export type Category = { slug: string; label: string };
 export const categories: Category[] = [
   { slug: 'toan-hoc', label: 'Toán học' }, { slug: 'vat-li', label: 'Vật lí' },
@@ -17,6 +18,8 @@ export type Block =
 export type Reference = { label: string; url: string };
 export type Article = {
   id: string; title: string; slug: string; summary: string; coverImage: string; coverAlt: string;
+  originalTitle?: string; displayTitle?: string; editorialSummary?: string; sourceUrl?: string;
+  editorialReview?: { status: string; issues?: string[] };
   category: string; tags: string[]; author: string; blocks: Block[]; references: Reference[];
   status: 'draft' | 'published'; featured: boolean; publishedAt: string | null; createdAt: string; updatedAt: string;
 };
@@ -32,6 +35,7 @@ export class ApiError extends Error {
 }
 type ScienceContextValue = {
   user: User | null; ready: boolean; sessionError: string; request: <T>(path: string, options?: RequestInit) => Promise<T>;
+  capabilities: AuthCapabilities | null;
   refreshSession: () => Promise<void>; logout: () => Promise<void>;
 };
 const ScienceContext = createContext<ScienceContextValue | null>(null);
@@ -40,6 +44,7 @@ export function ScienceProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [sessionError, setSessionError] = useState('');
+  const [capabilities, setCapabilities] = useState<AuthCapabilities | null>(null);
   const csrf = useRef('');
   const sessionPromise = useRef<Promise<void> | null>(null);
   const refreshSession = useCallback(async () => {
@@ -49,7 +54,7 @@ export function ScienceProvider({ children }: { children: ReactNode }) {
         const response = await fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error?.message || 'Không thể kết nối phiên đăng nhập.');
-        csrf.current = body.csrfToken || ''; setUser(body.user || null); setSessionError('');
+        csrf.current = body.csrfToken || ''; setUser(body.user || null); setCapabilities(body.capabilities || null); setSessionError('');
       } catch (error) { csrf.current = ''; setUser(null); setSessionError(error instanceof Error ? error.message : 'Không thể kết nối máy chủ.'); }
       finally { setReady(true); }
     })();
@@ -72,10 +77,11 @@ export function ScienceProvider({ children }: { children: ReactNode }) {
     try { body = await response.json(); } catch { /* A DELETE may return no content. */ }
     if (!response.ok) throw new ApiError(body?.error?.message || `Yêu cầu không thành công (${response.status}).`, response.status, body?.error?.code || 'HTTP_ERROR', body?.error?.fields);
     if (body && Object.prototype.hasOwnProperty.call(body, 'csrfToken')) { csrf.current = body.csrfToken || ''; setUser(body.user || null); }
+    if (body?.capabilities) setCapabilities(body.capabilities);
     return body as T;
   }, [refreshSession]);
   const logout = useCallback(async () => { await request('/api/auth/logout', { method: 'POST', body: '{}' }); setUser(null); }, [request]);
-  return <ScienceContext.Provider value={{ user, ready, sessionError, request, refreshSession, logout }}>{children}</ScienceContext.Provider>;
+  return <ScienceContext.Provider value={{ user, ready, sessionError, capabilities, request, refreshSession, logout }}>{children}</ScienceContext.Provider>;
 }
 export function useScience() {
   const context = useContext(ScienceContext);
