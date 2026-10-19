@@ -261,7 +261,7 @@
 .science-auth > p { font-size: 16px; line-height: 1.75; }
 .science-auth > p strong { color: #f8eee8; font-weight: 500; }
 .science-auth form { gap: 22px; }
-.science-password-field { display: grid; gap: 9px; }
+.science-auth-field, .science-password-field { display: grid; gap: 9px; }
 .science-password-control { display: flex; position: relative; min-width: 0; }
 .science-password-control input { padding-right: 78px; }
 .science-password-control > button { position: absolute; inset: 1px 1px 1px auto; min-width: 66px; padding: 8px 13px; border-radius: 0 8px 8px 0; background: #261a21; color: #ffd2bd; font-size: 13px; min-height: 44px; }

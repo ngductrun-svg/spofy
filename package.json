@@ -1,6 +1,6 @@
 {
   "name": "spofy-science",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.25.0",
@@ -12,8 +12,10 @@
     "build:admin": "node scripts/build-admin-helper.mjs",
     "test": "node --test server-tests/*.test.mjs",
     "check:data": "node scripts/verify-data-export.mjs",
-    "build": "node scripts/verify-data-export.mjs && vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "build": "node scripts/check-deploy-context.mjs && node scripts/verify-data-export.mjs && node scripts/verify-archive-assets.mjs && node scripts/build-weekly.mjs && vite build && node scripts/prepare-page-shell.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src server netlify scripts server-tests"
   },
   "dependencies": {
     "@designcodeio/threeui": "1.2.0",
@@ -26,7 +28,16 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.10",
-    "vite": "7.3.1"
+    "vite": "7.3.1",
+    "typescript": "6.0.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@types/three": "0.149.0",
+    "@types/node": "24.19.2",
+    "eslint": "10.13.0",
+    "@typescript-eslint/parser": "8.71.2"
   },
-  "engines": { "node": ">=24.15.0" }
+  "engines": {
+    "node": ">=24.15.0"
+  }
 }

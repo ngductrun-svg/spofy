@@ -1,7 +1,10 @@
 node_modules/
 .pnpm-store/
 .netlify/
+netlify/generated/
 .env
+.env.*
+!.env.example
 data/
 dist/
 qa-data/

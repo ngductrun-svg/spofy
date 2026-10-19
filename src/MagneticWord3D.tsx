@@ -266,7 +266,10 @@ export function MagneticWord3D({ pulse = 0 }: { pulse?: number }) {
       sceneNode!.dataset.magnetic = String(strongest > .01);
       try {
         renderer.render(scene, camera);
-        if (renderer.info.programs?.some(program => program.diagnostics && !program.diagnostics.runnable)) { fail(); return; }
+        if (renderer.info.programs?.some(program => {
+          const diagnostics = (program as typeof program & { diagnostics?: { runnable: boolean } }).diagnostics;
+          return diagnostics && !diagnostics.runnable;
+        })) { fail(); return; }
       } catch { fail(); return; }
       canvas!.style.visibility = "visible";
       sceneNode!.dataset.renderer = "webgl";

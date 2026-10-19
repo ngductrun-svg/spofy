@@ -1,6 +1,8 @@
+import { renderPageHtml, PAGE_CSP } from './page-meta.mjs';
+import { publicArticlePresentation } from './article-display.mjs';
 import { createServer } from 'node:http';
 import { createReadStream } from 'node:fs';
-import { mkdir, stat, writeFile, unlink } from 'node:fs/promises';
+import { mkdir, stat, writeFile, unlink, readFile } from 'node:fs/promises';
 import { resolve, join, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -9,6 +11,7 @@ import { HttpError, fail } from './errors.mjs';
 import { CATEGORIES, validateArticle, onlyFields, plain, email, password, fold } from './validation.mjs';
 import { readSession, createSession, requireUser, requireAdmin, verifyMutation, hashPassword, checkPassword, publicUser, digest, recordSignIn, LOGIN_HISTORY_LIMIT } from './auth.mjs';
 import { inspectImage } from './image.mjs';
+import { createAuthLifecycle, createEmailService, sqliteAuthAdapter, AUTH_TOKEN_RETENTION_MS } from './auth-lifecycle.mjs';
 
 const PROJECT = fileURLToPath(new URL('../', import.meta.url));
 const ONE_HOUR = 3_600_000;
@@ -52,8 +55,11 @@ export function createApplication(options = {}) {
   const appOrigin = parsedOrigin.origin;
   const secureCookies = options.secureCookies ?? parsedOrigin.protocol === 'https:';
   const now = options.now ?? (() => Date.now());
-  const limits = { login: { count: 10, windowMs: 15 * 60_000 }, register: { count: 5, windowMs: ONE_HOUR }, comments: { count: 8, windowMs: 10 * 60_000 }, uploads: { count: 100, windowMs: ONE_HOUR }, session: { count: 120, windowMs: 60_000 }, commentIntervalMs: 15_000, ...options.limits };
+  const limits = { login: { count: 10, windowMs: 15 * 60_000 }, register: { count: 5, windowMs: ONE_HOUR }, reset: { count: 5, windowMs: ONE_HOUR }, verify: { count: 12, windowMs: ONE_HOUR }, resend: { count: 3, windowMs: ONE_HOUR }, comments: { count: 8, windowMs: 10 * 60_000 }, uploads: { count: 100, windowMs: ONE_HOUR }, session: { count: 120, windowMs: 60_000 }, commentIntervalMs: 15_000, ...options.limits };
   const db = openDatabase(dbPath);
+  const authEnv = options.env ?? process.env;
+  const mail = createEmailService({ env: authEnv, appOrigin, transport: options.mailTransport, fetcher: options.mailFetch });
+  const lifecycle = createAuthLifecycle({ db: sqliteAuthAdapter(db), mail, now, passwordOptions: { mode: authEnv.PASSWORD_BREACH_CHECK ?? (authEnv.NODE_ENV === 'production' ? 'hibp' : 'local-blocklist'), fetcher: options.passwordFetch } });
   db.function('spofy_fold', { deterministic: true }, value => fold(String(value ?? '')));
   const trackingStartedAt = iso(db.prepare('SELECT applied_at FROM schema_migrations WHERE version=2').get().applied_at);
   const auditMetadata = { trackingStartedAt, historyRetentionLimit: LOGIN_HISTORY_LIMIT };
@@ -109,35 +115,51 @@ export function createApplication(options = {}) {
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+    res.setHeader('Content-Security-Policy', PAGE_CSP);
     if (secureCookies) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     try {
       const time = now();
-      if (time - lastPruned > ONE_HOUR) { db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(time); db.prepare('DELETE FROM rate_limits WHERE window_start<?').run(time - 2 * 24 * ONE_HOUR); lastPruned = time; }
+      if (time - lastPruned > ONE_HOUR) { db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(time); db.prepare('DELETE FROM rate_limits WHERE window_start<?').run(time - 2 * 24 * ONE_HOUR); db.prepare('DELETE FROM auth_tokens WHERE expires_at<? OR consumed_at<?').run(time - AUTH_TOKEN_RETENTION_MS, time - AUTH_TOKEN_RETENTION_MS); lastPruned = time; }
       const url = new URL(req.url, appOrigin);
       let path; try { path = decodeURIComponent(url.pathname); } catch { fail(400, 'INVALID_PATH', 'Đường dẫn không hợp lệ.'); }
       if (path.includes('\0') || path.includes('\\')) fail(400, 'INVALID_PATH', 'Đường dẫn không hợp lệ.');
-      const method = req.method ?? 'GET', ip = req.socket.remoteAddress ?? 'unknown';
+      const method = req.method ?? 'GET', ip = digest(req.socket.remoteAddress ?? 'unknown');
       let session = readSession(req, db, time);
       if (path.startsWith('/api/admin/')) requireAdmin(session);
       if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && path.startsWith('/api/')) verifyMutation(req, session, appOrigin);
       if (path === '/api/health' && method === 'GET') return json(res, 200, { ok: true });
       if (path === '/api/auth/session' && method === 'GET') {
         if (!session) { rate(`session:${ip}`, limits.session); session = createSession(res, db, { now: time, secureCookies }); }
-        return json(res, 200, { user: session.user, csrfToken: session.csrf_token });
+        return json(res, 200, { user: session.user, csrfToken: session.csrf_token, capabilities: lifecycle.capabilities });
       }
       if (path === '/api/auth/register' && method === 'POST') {
         rate(`register:${ip}`, limits.register);
         const body = await readJson(req); onlyFields(body, ['email', 'name', 'password']);
-        const normalizedEmail = email(body.email), name = plain(body.name, 'name', 2, 100); password(body.password);
-        const hash = await hashPassword(body.password), id = randomUUID();
-        try { transaction(db, () => {
-          db.prepare("INSERT INTO users(id,email,name,password_hash,role,created_at) VALUES(?,?,?,?,'reader',?)").run(id, normalizedEmail, name, hash, time);
-          session = createSession(res, db, { userId: id, previous: session, now: time, secureCookies });
-          recordSignIn(db, id, 'register', time);
-        }); }
-        catch (error) { if (String(error.message).includes('UNIQUE')) fail(409, 'EMAIL_EXISTS', 'Email đã được sử dụng.'); throw error; }
-        return json(res, 201, { user: session.user, csrfToken: session.csrf_token });
+        const result = await lifecycle.register(body);
+        return json(res, 202, { ...result, user: null, csrfToken: session.csrf_token });
+      }
+      if (path === '/api/auth/forgot-password' && method === 'POST') {
+        rate(`reset:ip:${ip}`, limits.reset);
+        const body = await readJson(req); onlyFields(body, ['email']); const normalizedEmail = email(body.email);
+        rate(`reset:email:${digest(normalizedEmail)}`, limits.reset);
+        return json(res, 202, await lifecycle.forgot(normalizedEmail));
+      }
+      if (path === '/api/auth/resend-verification' && method === 'POST') {
+        const user = requireUser(session), body = await readJson(req); onlyFields(body, []);
+        rate(`resend:user:${user.id}`, limits.resend); rate(`resend:ip:${ip}`, limits.reset);
+        return json(res, 202, await lifecycle.resend(user.id));
+      }
+      if (path === '/api/auth/verify-email' && method === 'POST') {
+        rate(`verify:ip:${ip}`, limits.verify); const body = await readJson(req); onlyFields(body, ['token']);
+        const userId = await lifecycle.verify(body.token);
+        transaction(db, () => { session = createSession(res, db, { userId, previous: session, now: time, secureCookies }); recordSignIn(db, userId, 'register', time); });
+        return json(res, 200, { user: session.user, csrfToken: session.csrf_token, capabilities: lifecycle.capabilities });
+      }
+      if (path === '/api/auth/reset-password' && method === 'POST') {
+        rate(`reset-token:ip:${ip}`, limits.verify); const body = await readJson(req); onlyFields(body, ['token', 'password']);
+        const result = await lifecycle.reset(body.token, body.password);
+        session = createSession(res, db, { previous: session, now: time, secureCookies });
+        return json(res, 200, { ...result, user: null, csrfToken: session.csrf_token });
       }
       if (path === '/api/auth/login' && method === 'POST') {
         rate(`login:${ip}`, limits.login);
@@ -169,7 +191,7 @@ export function createApplication(options = {}) {
         if (role) { where.push('u.role=?'); args.push(role); }
         const clause = where.length ? ` WHERE ${where.join(' AND ')}` : '';
         const total = db.prepare(`SELECT count(*) AS total FROM users u${clause}`).get(...args).total;
-        const items = db.prepare(`SELECT u.id,u.email,u.name,u.role,u.created_at,u.last_login_at,u.login_count,(SELECT count(*) FROM sessions s WHERE s.user_id=u.id AND s.expires_at>?) AS active_sessions FROM users u${clause} ORDER BY coalesce(u.last_login_at,u.created_at) DESC,u.id DESC LIMIT ? OFFSET ?`).all(time, ...args, pageSize, (page - 1) * pageSize).map(row => ({ ...publicUser(row), createdAt: iso(row.created_at), lastLoginAt: iso(row.last_login_at), loginCount: row.login_count, activeSessions: row.active_sessions }));
+        const items = db.prepare(`SELECT u.id,u.email,u.name,u.role,u.email_verified_at,u.email_verification_required,u.created_at,u.last_login_at,u.login_count,(SELECT count(*) FROM sessions s WHERE s.user_id=u.id AND s.expires_at>?) AS active_sessions FROM users u${clause} ORDER BY coalesce(u.last_login_at,u.created_at) DESC,u.id DESC LIMIT ? OFFSET ?`).all(time, ...args, pageSize, (page - 1) * pageSize).map(row => ({ ...publicUser(row), createdAt: iso(row.created_at), lastLoginAt: iso(row.last_login_at), loginCount: row.login_count, activeSessions: row.active_sessions }));
         return json(res, 200, { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)), ...auditMetadata });
       }
       if (path === '/api/admin/login-events' && method === 'GET') {
@@ -191,7 +213,7 @@ export function createApplication(options = {}) {
         if (category) { where.push('category=?'); args.push(category); }
         if (['1', 'true'].includes(url.searchParams.get('featured'))) where.push('featured=1');
         const clause = where.join(' AND '), total = db.prepare(`SELECT count(*) AS total FROM articles WHERE ${clause}`).get(...args).total;
-        const items = db.prepare(`SELECT ${ARTICLE_COLUMNS} FROM articles WHERE ${clause} ORDER BY published_at DESC,id DESC LIMIT ? OFFSET ?`).all(...args, pageSize, (page - 1) * pageSize).map(row => serializeArticle(row, false));
+        const items = db.prepare(`SELECT ${ARTICLE_COLUMNS} FROM articles WHERE ${clause} ORDER BY published_at DESC,id DESC LIMIT ? OFFSET ?`).all(...args, pageSize, (page - 1) * pageSize).map(row => publicArticlePresentation(serializeArticle(row, false)));
         return json(res, 200, { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)), categories: CATEGORIES });
       }
       let match = path.match(/^\/api\/articles\/([^/]+)\/comments$/);
@@ -199,7 +221,8 @@ export function createApplication(options = {}) {
         const articleId = match[1]; ensureFound(db.prepare("SELECT id FROM articles WHERE id=? AND status='published'").get(articleId));
         if (method === 'GET') return json(res, 200, { items: db.prepare(`${commentSelect} WHERE c.article_id=? AND c.status='visible' ORDER BY c.created_at ASC,c.id ASC LIMIT 500`).all(articleId).map(serializeComment) });
         if (method === 'POST') {
-          const user = requireUser(session), body = await readJson(req); onlyFields(body, ['body']);
+          const user = requireUser(session); if (user.emailVerified === false) fail(403, 'EMAIL_NOT_VERIFIED', 'Vui lòng xác minh email trước khi gửi bình luận.');
+          const body = await readJson(req); onlyFields(body, ['body']);
           const text = plain(body.body, 'body', 3, 2000), fingerprint = digest(fold(text).replace(/\s+/g, ' '));
           if (db.prepare('SELECT id FROM comments WHERE user_id=? AND article_id=? AND body_fingerprint=? AND created_at>? LIMIT 1').get(user.id, articleId, fingerprint, time - 24 * ONE_HOUR)) fail(409, 'DUPLICATE_COMMENT', 'Bình luận này đã được gửi trong 24 giờ qua.');
           const last = db.prepare('SELECT max(created_at) AS last FROM comments WHERE user_id=?').get(user.id).last;
@@ -214,7 +237,7 @@ export function createApplication(options = {}) {
       if (match && method === 'GET') {
         const article = serializeArticle(ensureFound(db.prepare(`SELECT ${ARTICLE_COLUMNS} FROM articles WHERE slug=? AND status='published'`).get(match[1])));
         const related = db.prepare(`SELECT ${ARTICLE_COLUMNS} FROM articles WHERE status='published' AND category=? AND id<>? ORDER BY published_at DESC LIMIT 3`).all(article.category, article.id).map(row => serializeArticle(row, false));
-        return json(res, 200, { article, related });
+        return json(res, 200, { article: publicArticlePresentation(article), related: related.map(publicArticlePresentation) });
       }
       if (path === '/api/admin/articles') {
         const user = requireAdmin(session);
@@ -258,16 +281,28 @@ export function createApplication(options = {}) {
       if (path.startsWith('/media/')) fail(404, 'NOT_FOUND', 'Không tìm thấy tệp.');
       if (!['GET', 'HEAD'].includes(method)) fail(405, 'METHOD_NOT_ALLOWED', 'Phương thức không được hỗ trợ.');
       // The server never exposes source, configuration, SQLite files, backups or arbitrary paths.
-      const spa = path === '/' || /^\/(?:khoa-hoc(?:\/[a-z0-9-]+)?|dang-nhap|dang-ky|admin(?:\/.*)?)\/?$/.test(path);
+      const spa = path === '/' || /^\/(?:khoa-hoc(?:\/[a-z0-9-]+)?|dang-nhap|dang-ky|quen-mat-khau|dat-lai-mat-khau|xac-minh-email|quyen-rieng-tu|bat-dau|cau-hoi-moi-tuan|tham-gia|admin(?:\/.*)?)\/?$/.test(path);
       const relative = spa ? 'index.html' : path.replace(/^\/+/, '');
       if (!spa && (relative.split('/').some(part => !part || part.startsWith('.') || part === '..') || !/^(?:assets\/[^/]+|fonts\/[^/]+|hero\/[^/]+|images\/[^/]+|landing-pages\/inner-green-assets\/lexend-latin\.woff2|archive\/(?:photos|thumbs)\/\d+\.webp|[^/]+\.(?:json|svg|png|webp|ico|jpg|jpeg|woff2))$/.test(relative))) fail(404, 'NOT_FOUND', 'Không tìm thấy nội dung.');
       const target = resolve(distDir, relative);
       if (!target.startsWith(distDir + sep)) fail(404, 'NOT_FOUND', 'Không tìm thấy nội dung.');
-      return await sendFile(req, res, target, { privateFile: spa });
+      if (spa) {
+        let row = null;
+        if (path.startsWith('/khoa-hoc/')) row = db.prepare("SELECT * FROM articles WHERE slug=? AND status='published'").get(path.slice('/khoa-hoc/'.length).replace(/\/$/, ''));
+        let shell; try { shell = await readFile(target, 'utf8'); } catch { fail(404, 'NOT_FOUND', 'Chưa có giao diện build.'); }
+        const rendered = renderPageHtml(shell, {pathname:path,article:row,origin:options.siteOrigin});
+        res.statusCode = rendered.status; res.setHeader('Content-Type','text/html; charset=utf-8'); res.setHeader('Cache-Control','no-store');
+        if (rendered.metadata.robots.startsWith('noindex')) res.setHeader('X-Robots-Tag',rendered.metadata.robots);
+        return res.end(method === 'HEAD' ? undefined : rendered.html);
+      }
+      return await sendFile(req, res, target);
     } catch (error) {
       if (res.headersSent) { res.destroy(); return; }
+      // A transaction may have rolled back after preparing a rotated session.
+      // Never replace a still-valid browser cookie with a rolled-back token.
+      res.removeHeader('Set-Cookie');
       const known = error instanceof HttpError;
-      if (!known) (options.logger ?? console).error('SPOFY server error:', error);
+      if (!known) (options.logger ?? console).error('SPOFY server error:', { name: error?.name ?? 'Error', code: error?.code ?? 'INTERNAL_ERROR' });
       if (known && error.status === 429) res.setHeader('Retry-After', '60');
       return json(res, known ? error.status : 500, { error: { code: known ? error.code : 'INTERNAL_ERROR', message: known ? error.message : 'Máy chủ gặp lỗi. Vui lòng thử lại sau.', ...(known && error.fields ? { fields: error.fields } : {}) } });
     }

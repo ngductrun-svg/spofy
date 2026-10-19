@@ -1,0 +1,61 @@
+[
+  {
+    "path": "/",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": "SPOFY — Hành trình của trí tò mò",
+    "canonical": "https://spofysofia.netlify.app/"
+  },
+  {
+    "path": "/khoa-hoc",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": "Khoa học | SPOFY",
+    "canonical": "https://spofysofia.netlify.app/khoa-hoc"
+  },
+  {
+    "path": "/khoa-hoc/calling-for-a-hot-drink",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": "Chocolate nóng trong những ngày lạnh | SPOFY",
+    "canonical": "https://spofysofia.netlify.app/khoa-hoc/calling-for-a-hot-drink"
+  },
+  {
+    "path": "/dang-ky",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": "Đăng ký tài khoản | SPOFY",
+    "canonical": "https://spofysofia.netlify.app/dang-ky"
+  },
+  {
+    "path": "/tham-gia",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": "Tham gia và câu hỏi thường gặp | SPOFY",
+    "canonical": "https://spofysofia.netlify.app/tham-gia"
+  },
+  {
+    "path": "/quyen-rieng-tu",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": "Thông tin quyền riêng tư | SPOFY",
+    "canonical": "https://spofysofia.netlify.app/quyen-rieng-tu"
+  },
+  {
+    "path": "/khoa-hoc/khong-co-bai-nay",
+    "status": 404,
+    "type": "text/html; charset=utf-8",
+    "title": "Không tìm thấy bài viết | SPOFY",
+    "canonical": "https://spofysofia.netlify.app/khoa-hoc/khong-co-bai-nay"
+  },
+  {
+    "path": "/api/khong-co-api",
+    "status": 404,
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "path": "/server/auth.mjs",
+    "status": 404,
+    "type": "application/json; charset=utf-8"
+  }
+]

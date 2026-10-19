@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { ArchiveImage } from "./ArchiveImage";
-import { MagneticWord3D } from "./MagneticWord3D";
+import { LoadBoundary } from "./LoadBoundary";
+const MagneticWord3D = lazy(() => import("./MagneticWord3D").then(module => ({ default: module.MagneticWord3D })));
 import { displayTitle } from "./archiveDisplay";
 import "./hero-word.css";
 
@@ -174,7 +175,7 @@ export function HeroWord({ events, loading, onActiveChange, dismissSignal = 0 }:
     <h1 className="spofy-hero-word spofy-wordmark" aria-label="SPOFY">
       <button type="button" className="spofy-word-trigger" ref={trigger} aria-label={open ? "SPOFY — đóng dấu mốc" : "SPOFY — mở dấu mốc"}
         aria-expanded={open} aria-controls="spofy-hero-timeline" onClick={event => toggle(event.currentTarget)}>
-        <MagneticWord3D pulse={pulse} />
+        <LoadBoundary optional><Suspense fallback={null}><MagneticWord3D pulse={pulse} /></Suspense></LoadBoundary>
         {"SPOFY".split("").map((letter, index) => <span className="spofy-word-glyph spofy-letter" key={letter}
           data-letter={letter} data-index={index} ref={node => { letterRefs.current[index] = node; }} aria-hidden="true"><span className="spofy-word-face">{letter}</span></span>)}
       </button><span className="spofy-hero-word-star" aria-hidden="true">✳</span>

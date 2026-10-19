@@ -8,7 +8,8 @@ export type FeaturedHistoryRecord = {
   name: string;
   year: string;
   dateKind: "event_date" | "posted_date";
-  photo: { src: string; alt: string; width?: number; height?: number };
+  photo: { src: string; alt: string; width?: number; height?: number; srcSet?: string };
+  description?: string;
   photoCount: number;
   source_url: string;
 };
@@ -206,10 +207,11 @@ export function FeaturedHistory({ records, onOpenAlbum }: FeaturedHistoryProps) 
       <div ref={stage} className="featured-memory-stage" onFocusCapture={focusScene} onBlurCapture={blurScene}>
         {visibleRecords.map((record, index) => <div className="featured-memory-reveal" key={record.id} data-reveal style={{ "--reveal-index": index } as CSSProperties}>
           <article className="featured-memory-card" ref={element => { cards.current[index] = element; }} data-event-id={record.id}>
-            <div className="featured-memory-photo"><ArchiveImage src={record.photo.src} alt={record.photo.alt} width={record.photo.width} height={record.photo.height} fit="contain" aspectRatio="3 / 2" loading="lazy" /></div>
+            <div className="featured-memory-photo"><ArchiveImage src={record.photo.src} srcSet={record.photo.srcSet} sizes="(max-width: 900px) 90vw, 45vw" alt={record.photo.alt} width={record.photo.width} height={record.photo.height} fit="contain" aspectRatio="3 / 2" loading="lazy" /></div>
             <div className="featured-memory-copy">
               <p className="featured-memory-date"><span>{record.year}</span><span>{record.dateKind === "event_date" ? "Sự kiện" : "Đăng ảnh"}</span></p>
               <h4>{record.name}</h4>
+              {record.description && <p className="featured-memory-description">{record.description}</p>}
               <p className="featured-memory-count">{number(record.photoCount)} ảnh trong tư liệu</p>
               <div className="featured-memory-actions">
                 <button type="button" onClick={() => { if (actionsReady.current || keyboardFocus.current) onOpenAlbum(record.id); }} aria-label={`Mở album ${record.name}`}>Mở album <span aria-hidden="true">↗</span></button>

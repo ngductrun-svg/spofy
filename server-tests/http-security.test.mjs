@@ -140,7 +140,7 @@ test('registration never grants admin; session cookie, CSRF/origin and logout ar
   rejected(escalated, [400, 422]);
   const reader = fixture.client();
   const registration = await reader.register();
-  assert.equal(registration.status, 201, registration.text);
+  assert.equal(registration.status, 200, registration.text);
   const session = await reader.session();
   assert.equal(session.json.user.role, 'reader');
   assert.ok(session.json.csrfToken);
@@ -312,7 +312,7 @@ test('production cookie has Secure and sessions expire on the server', async (t)
 async function setupReaderOnly(fixture, email) {
   const reader = fixture.client();
   const registration = await reader.register({ ...READER, email });
-  assert.equal(registration.status, 201, registration.text);
+  assert.equal(registration.status, 200, registration.text);
   await reader.session();
   return { reader };
 }

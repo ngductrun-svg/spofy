@@ -8,7 +8,10 @@ CREATE TABLE IF NOT EXISTS users (
  role TEXT NOT NULL DEFAULT 'reader' CHECK(role IN ('reader','admin')),
  created_at INTEGER NOT NULL,
  last_login_at INTEGER,
- login_count INTEGER NOT NULL DEFAULT 0 CHECK(login_count>=0)
+ login_count INTEGER NOT NULL DEFAULT 0 CHECK(login_count>=0),
+ email_verified_at INTEGER,
+ email_verification_required INTEGER NOT NULL DEFAULT 0 CHECK(email_verification_required IN (0,1)),
+ auth_version INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 CREATE TABLE IF NOT EXISTS login_events (
  id TEXT PRIMARY KEY,
@@ -23,9 +26,22 @@ CREATE TABLE IF NOT EXISTS sessions (
  csrf_token TEXT NOT NULL,
  user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
  expires_at INTEGER NOT NULL,
- created_at INTEGER NOT NULL
+ created_at INTEGER NOT NULL,
+ auth_version INTEGER NOT NULL DEFAULT 0,
+ user_role TEXT
 ) STRICT;
 CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires_at);
+CREATE TABLE IF NOT EXISTS auth_tokens (
+ token_hash TEXT PRIMARY KEY,
+ user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ purpose TEXT NOT NULL CHECK(purpose IN ('verify','reset')),
+ created_at INTEGER NOT NULL,
+ expires_at INTEGER NOT NULL,
+ consumed_at INTEGER,
+ delivery_state TEXT NOT NULL CHECK(delivery_state IN ('pending','sent'))
+) STRICT;
+CREATE INDEX IF NOT EXISTS auth_tokens_user ON auth_tokens(user_id,purpose);
+CREATE INDEX IF NOT EXISTS auth_tokens_expiry ON auth_tokens(expires_at);
 CREATE TABLE IF NOT EXISTS articles (
  id TEXT PRIMARY KEY,
  title TEXT NOT NULL,

@@ -5,6 +5,7 @@ const Formula = lazy(() => import('./Formula'));
 export const articleTitle = (article: Article) => article.displayTitle || article.title;
 export const articleSummary = (article: Article) => article.editorialSummary || article.summary;
 export const articleCategory = (article: Article) => article.editorialReview?.status === 'needs-source' ? 'Chờ đối chiếu chuyên mục' : categoryLabel(article.category);
+export const displayAuthor = (author: string) => author.trim().toLocaleLowerCase('en') === 'science propagandized organization for youth - spofy' ? 'SPOFY' : author;
 export function readingMinutes(article: Article) {
   const text = (article.blocks || []).map(block => block.type === 'heading' || block.type === 'paragraph' ? block.text : block.type === 'list' ? block.items.join(' ') : block.type === 'image' || block.type === 'formula' ? block.caption : block.label).join(' ');
   return text.trim() ? Math.max(1, Math.ceil(text.trim().split(/\s+/u).length / 220)) : null;
@@ -42,7 +43,7 @@ export function ArticleCard({ article }: { article: Article }) {
   const cover = safeUrl(article.coverImage, true);
   return <article className="science-card">
     <a className="science-card-cover" href={`/khoa-hoc/${encodeURIComponent(article.slug)}`} aria-label={`Đọc bài ${articleTitle(article)}`}>{cover ? <ArticleImage src={cover} alt={article.coverAlt || ''} /> : <CategoryIcon category={article.category} />}</a>
-    <div className="science-card-copy"><span className="science-category">{articleCategory(article)}</span><h3><a href={`/khoa-hoc/${encodeURIComponent(article.slug)}`}>{articleTitle(article)}</a></h3><p>{articleSummary(article)}</p><div className="science-meta"><span>{article.author}</span><time dateTime={article.publishedAt || undefined}>{formatDate(article.publishedAt)}</time></div></div>
+    <div className="science-card-copy"><span className="science-category">{articleCategory(article)}</span><h3><a href={`/khoa-hoc/${encodeURIComponent(article.slug)}`}>{articleTitle(article)}</a></h3><p>{articleSummary(article)}</p><div className="science-meta"><span title={article.author}>{displayAuthor(article.author)}</span><time dateTime={article.publishedAt || undefined}>{formatDate(article.publishedAt)}</time></div></div>
   </article>;
 }
 export function EmptyState({ title = 'Chưa có bài viết được xuất bản', children }: { title?: string; children?: ReactNode }) {

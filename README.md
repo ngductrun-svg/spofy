@@ -1,10 +1,12 @@
 # SPOFY — Khoa học và hành trình của trí tò mò
 
+**Bản nâng cấp 19/10/2026:** đọc **[README_DEPLOY.md](README_DEPLOY.md)** để đưa nhánh lên bản xem thử của project Netlify `spofysofia` hiện tại. Đọc [báo cáo kiểm thử](docs/TEST_REPORT.md) trước khi triển khai. Chưa xuất bản production; cần cấu hình email và xác nhận database preview riêng.
+
 Ứng dụng gồm giao diện React SPOFY, chuyên mục Khoa học, tài khoản, bình luận và quản trị. Có hai backend dùng chung giao diện: **Netlify Functions + PostgreSQL + Blobs** để đưa lên Internet, hoặc **Node.js + SQLite** khi chạy trên máy/hosting có đĩa bền vững. Không có bài viết mẫu, tài khoản mặc định hay mật khẩu admin trong gói bàn giao.
 
 ## Đưa lên Netlify, không cần CMD
 
-Làm theo **[NETLIFY-HUONG-DAN.md](NETLIFY-HUONG-DAN.md)**: giải nén gói Netlify → tải source lên GitHub Private → import repository trong Netlify → đăng ký tài khoản online → chủ project cấp quyền admin qua bảng `users` trên Netlify Database. Không kéo riêng HTML hoặc `dist` vào Netlify Drop.
+Làm theo **[README_DEPLOY.md](README_DEPLOY.md)** bằng GitHub Desktop: dùng repository và project hiện có, đưa nhánh sửa lên GitHub, xác nhận dữ liệu preview riêng rồi tạo PR để xem thử. Không kéo riêng HTML hoặc `dist` vào Netlify Drop. Giữ tài khoản admin hiện hữu; không tạo lại dữ liệu production.
 
 `netlify.toml` có cấu hình build, Functions, SPA routes và nhận diện môi trường cloud. Schema PostgreSQL ở `netlify/database/migrations/`; Netlify quản lý kết nối cơ sở dữ liệu và kho ảnh, không cần chèn khóa bí mật vào frontend. Chi tiết cấu trúc và cấu hình ở **[NETLIFY-ARCHITECTURE.md](NETLIFY-ARCHITECTURE.md)**.
 

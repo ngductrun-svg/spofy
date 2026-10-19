@@ -1,13 +1,19 @@
-import { useEffect, useState } from "react";
-import App from "./App";
-import { ScienceRouter } from "./science";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { LoadBoundary } from "./LoadBoundary";
+import { updatePageMetadata } from "./pageMetadata";
+const App = lazy(() => import("./App"));
+const ScienceRouter = lazy(() => import("./science").then(module => ({ default: module.ScienceRouter })));
 
 const locationKey = () => window.location.pathname + window.location.search;
-const handled = (path: string) => path === "/" || /^\/(khoa-hoc|dang-nhap|dang-ky|admin)(\/|$)/.test(path);
+const handled = (path: string) => path === "/" || /^\/(khoa-hoc|dang-nhap|dang-ky|admin|quen-mat-khau|dat-lai-mat-khau|xac-minh-email|bat-dau|cau-hoi-moi-tuan|tham-gia|quyen-rieng-tu)(\/|$)/.test(path);
 
 /** Small same-origin router; archive fragments stay with the existing App. */
 export function RootApp() {
   const [route, setRoute] = useState(() => ({ location: locationKey(), revision: 0 }));
+  useEffect(() => {
+    const pathname = route.location.split('?')[0];
+    if (!pathname.startsWith('/khoa-hoc/')) updatePageMetadata(pathname);
+  }, [route]);
   useEffect(() => {
     const pop = () => setRoute(previous => ({ location: locationKey(), revision: previous.revision + 1 }));
     const click = (event: MouseEvent) => {
@@ -27,5 +33,5 @@ export function RootApp() {
     document.addEventListener("click", click);
     return () => { window.removeEventListener("popstate", pop); document.removeEventListener("click", click); };
   }, []);
-  return route.location.split("?")[0] === "/" ? <App key={route.revision} /> : <ScienceRouter key={route.revision} path={route.location.split("?")[0]} />;
+  return <LoadBoundary><Suspense fallback={<main className="route-loading" role="status"><strong>SPOFY</strong><p>Đang mở nội dung…</p></main>}>{route.location.split("?")[0] === "/" ? <App key={route.revision} /> : <ScienceRouter key={route.revision} path={route.location.split("?")[0]} />}</Suspense></LoadBoundary>;
 }

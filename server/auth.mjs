@@ -7,11 +7,11 @@ const scrypt = promisify(scryptCallback);
 const HASH_OPTIONS = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 export const COOKIE_NAME = 'spofy_session';
 export const digest = value => createHash('sha256').update(value).digest('hex');
-export const publicUser = row => row ? { id: row.id, email: row.email, name: row.name, role: row.role } : null;
+export const publicUser = row => row ? { id: row.id, email: row.email, name: row.name, role: row.role, emailVerified: row.email_verified_at != null ? true : Number(row.email_verification_required) === 1 ? false : null } : null;
 export const LOGIN_HISTORY_LIMIT = 10_000;
 
-// Called in the same transaction as session creation. Registration starts an
-// authenticated session too; trusted CLI account creation does not count.
+// Called in the same transaction as session creation. Completing registration
+// by email verification starts a session; trusted CLI creation does not count.
 export function recordSignIn(db, userId, eventType, now) {
   if (!['login', 'register'].includes(eventType)) throw new Error('Invalid sign-in event type');
   db.prepare('UPDATE users SET last_login_at=?,login_count=login_count+1 WHERE id=?').run(now, userId);
@@ -52,8 +52,9 @@ export function readSession(req, db, now) {
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
   const row = db.prepare('SELECT * FROM sessions WHERE token_hash=? AND expires_at>?').get(digest(token), now);
   if (!row) return null;
-  const user = row.user_id ? db.prepare('SELECT id,email,name,role FROM users WHERE id=?').get(row.user_id) : null;
+  const user = row.user_id ? db.prepare('SELECT id,email,name,role,email_verified_at,email_verification_required,auth_version FROM users WHERE id=?').get(row.user_id) : null;
   if (row.user_id && !user) return null;
+  if (user && (Number(row.auth_version) !== Number(user.auth_version) || row.user_role !== user.role)) { db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id); return null; }
   return { ...row, user: publicUser(user) };
 }
 export function createSession(res, db, { userId = null, previous = null, now, secureCookies }) {
@@ -63,9 +64,10 @@ export function createSession(res, db, { userId = null, previous = null, now, se
   const maxAge = userId ? 7 * 24 * 60 * 60 : 24 * 60 * 60;
   const expiresAt = now + maxAge * 1000;
   const tokenHash = digest(token);
-  db.prepare('INSERT INTO sessions(token_hash,csrf_token,user_id,expires_at,created_at) VALUES(?,?,?,?,?)').run(tokenHash, csrf, userId, expiresAt, now);
+  const user = userId ? db.prepare('SELECT * FROM users WHERE id=?').get(userId) : null;
+  db.prepare('INSERT INTO sessions(token_hash,csrf_token,user_id,expires_at,created_at,auth_version,user_role) VALUES(?,?,?,?,?,?,?)').run(tokenHash, csrf, userId, expiresAt, now, user?.auth_version ?? 0, user?.role ?? null);
   res.setHeader('Set-Cookie', `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureCookies ? '; Secure' : ''}`);
-  return { token_hash: tokenHash, csrf_token: csrf, user_id: userId, expires_at: expiresAt, user: userId ? publicUser(db.prepare('SELECT * FROM users WHERE id=?').get(userId)) : null };
+  return { token_hash: tokenHash, csrf_token: csrf, user_id: userId, expires_at: expiresAt, user: publicUser(user) };
 }
 export function requireUser(session) { if (!session?.user) fail(401, 'AUTH_REQUIRED', 'Vui lòng đăng nhập để tiếp tục.'); return session.user; }
 export function requireAdmin(session) { const user = requireUser(session); if (user.role !== 'admin') fail(403, 'FORBIDDEN', 'Thao tác này chỉ dành cho admin.'); return user; }
