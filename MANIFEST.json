@@ -116,20 +116,20 @@
     "sha256": "90d60a39aff1bcded6c94be244b4ec7950db00a2b77ca30cd3d85aed1a5e5b5f"
   },
   "docs/TEST_REPORT.md": {
-    "bytes": 9836,
-    "sha256": "9e6f7e41322b338d3d26228a1e8d76b6f613e7e321d95ed5cff95063296d20be"
+    "bytes": 11796,
+    "sha256": "48573695dcc7fb8d478052156cd2ca84b3df2d390fc9972a1e98405ca898e69c"
   },
   "docs/upgrade-findings.md": {
-    "bytes": 9215,
-    "sha256": "9907827d8f27416423a53ee62faba0b7135eb4cab71c97b52ec8ac364f5787b9"
+    "bytes": 11047,
+    "sha256": "9eb7b62e7162cc1c47a2c74f2f2e9be0fd35c1d4c035c343480c9943ec3b0c7f"
   },
   "eslint.config.mjs": {
     "bytes": 530,
     "sha256": "6b27fdae48d6c29b03c7f313f99f9dd476595cf4bf1787aa030a4a609a7d5253"
   },
   "HUONG-DAN-BAN-GIAO.html": {
-    "bytes": 7243,
-    "sha256": "2e4149e3e5c95678b4bb9a0416e516db75a4c3e4612f4d592067335db82a7d3a"
+    "bytes": 7450,
+    "sha256": "3fd1bfee21fa1759639c671579782d778f47d3a511419ac2931de5aa7da6d404"
   },
   "index.html": {
     "bytes": 1889,
@@ -168,8 +168,8 @@
     "sha256": "b760a8bb5698d2f2229d5907f35f47635afeee67bbea9d9a23acea092647e5c7"
   },
   "netlify/functions/spofy.mjs": {
-    "bytes": 1298,
-    "sha256": "fcb742caacf77d97c29eda1bd82a180f1f4b27834eac1e9fbb9981c41ac02739"
+    "bytes": 1384,
+    "sha256": "45068072a878950953cdfa128912115ab9d33536404508b26de554b75ef6c750"
   },
   "netlify/server/app.mjs": {
     "bytes": 32564,
@@ -184,8 +184,8 @@
     "sha256": "fc57ddf6ede06039c68d421a0c8ab00707a5437d6bc28039b69fc36fc1cb379f"
   },
   "netlify/server/storage.mjs": {
-    "bytes": 822,
-    "sha256": "384ea0b9ce1bf2f4c4772a73986b16d9c8f353d06082724717768cbd9d3f6941"
+    "bytes": 1684,
+    "sha256": "ad2e006da350f60bf2f697a1661ab022fb5973f9f80ab326ec93f6e913339b30"
   },
   "NETLIFY-ARCHITECTURE.md": {
     "bytes": 5493,
@@ -12004,8 +12004,8 @@
     "sha256": "be0ce69905fbfc85878da8a88a0a40e9c13eb22d5cef39642b0206563cc87cf1"
   },
   "README_DEPLOY.md": {
-    "bytes": 10919,
-    "sha256": "703615d2aa0947130e06c62049c37285b1faa98629c94c824d2b14f8fa5a5d68"
+    "bytes": 12384,
+    "sha256": "4b939f49465fb1bf5e81705d20f6a30a1ac9b980f3932b7563619f0228d16900"
   },
   "scripts/admin-form-bootstrap.mjs": {
     "bytes": 8086,
@@ -12154,6 +12154,10 @@
   "server-tests/page-meta.test.mjs": {
     "bytes": 9674,
     "sha256": "7bbba7f6d9035d68a7d595f8e63ead39dae9ea4bb19b80a1acd8ae59106a16c9"
+  },
+  "server-tests/storage-isolation.test.mjs": {
+    "bytes": 4496,
+    "sha256": "9d5cd5895efa9f4714b796ad494f864c3582b5fd5dc1f54b6d07117118daaae6"
   },
   "server-tests/weekly-content.test.mjs": {
     "bytes": 2434,

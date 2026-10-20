@@ -2,6 +2,8 @@
 
 Khảo sát ban đầu ngày 18/10/2026; tiếp tục rà soát source và hoàn thiện tài liệu ngày 19/10/2026, giờ Việt Nam. Đối tượng: source repository `ngductrun-svg/spofy`, bắt đầu từ commit `9869d95`; nhánh làm việc `codex/spofy-quality-20261018`. Commit cục bộ đầu tiên về giao diện là `83c43e6`; không đồng nghĩa đã push hoặc deploy. Production chỉ được đọc công khai, không tạo tài khoản/dữ liệu test, sửa database hoặc gửi email thật.
 
+Ngày **20/10/2026**, rà soát trước khi đưa nhánh lên GitHub phát hiện store upload bài viết dùng chung mọi deploy context. Đã sửa cách ly Preview và kiểm tra lại backend 69/69 đạt. GitHub đã được cho phép đăng nhập và dry-run kiểm tra push thành công; tại thời điểm cập nhật tài liệu này chưa có thao tác push/PR/deploy thật.
+
 ## 1. Lỗi/nội dung có bằng chứng
 
 | Vị trí | Bằng chứng và nguyên nhân | File/cách xử lý | Cách xác minh và giới hạn |
@@ -11,6 +13,7 @@ Khảo sát ban đầu ngày 18/10/2026; tiếp tục rà soát source và hoàn
 | Metadata | `index.html` dùng `og:url` của hosting kho ảnh, mọi route ban đầu nhận cùng shell | `server/page-meta.mjs`, `netlify/functions/page.mjs`, `scripts/prepare-page-shell.mjs`, `index.html`, `netlify.toml` | Kiểm thử HTML đầu tiên, escape, canonical, ảnh/ngày bài và SQL chỉ bài xuất bản. Draft/không tồn tại 404 noindex; thiếu dịch vụ 503. Netlify thực cần Preview xác nhận. |
 | Luồng tài khoản ban đầu | Source chỉ có đăng ký/đăng nhập, chưa có token xác minh/khôi phục thật | `server/auth-lifecycle.mjs`, hai backend, migration `0002_auth_lifecycle.sql`, `src/science/AuthPages.tsx` | Có lifecycle server, token hash/hạn/một lần, giao diện và mail transport Resend. Chỉ transport test cô lập đã kiểm thử; key/sender thật chưa được cung cấp/cấu hình. |
 | Kho ảnh phụ thuộc origin ngoài | Source ban đầu chỉ kèm hai hero, cấu hình trỏ hosting ngoài; tìm được đủ tệp gốc trong workspace | `public/archive`, manifest/checker, `src/archiveVariants.json`; bản mới dùng cùng origin | Giải mã đủ 2.942 WebP, 241.112.868 byte; hash catalog giữ nguyên; 1.471 kích thước ảnh lớn đều khớp. Không kết luận ảnh production hỏng: browser probe có ảnh tải được. |
+| Storage ảnh bài viết trên Preview, rà soát 20/10 | `netlifyStorage()` trước đó luôn gọi `getStore('spofy-article-media')`; Netlify xác định đây là store site-wide, dùng được ở mọi context, nên DB riêng chưa đủ cách ly media | `netlify/server/storage.mjs`, `netlify/functions/spofy.mjs`, `server-tests/storage-isolation.test.mjs`: giữ nguyên store production; Preview dùng `getDeployStore`, xác nhận context trước khởi tạo DB/storage | 4 test cách ly và toàn bộ 69 test đạt. SDK thật xác minh namespace/deploy ID trong subprocess không mạng; chưa thử upload trên Netlify thật. Ảnh upload Preview không tự mang sang lần deploy tiếp theo; kho ảnh tĩnh không đổi. |
 
 ## 2. Thiết kế/khả năng đọc, không phải khẳng định lỗi bảo mật
 
@@ -30,6 +33,8 @@ Thay đổi có chủ đích: đăng ký 202, chưa tự đăng nhập; tài kho
 
 CSP `connect-src` thu hẹp còn self khi kho ảnh đã đóng gói đủ. `img-src https:` được giữ vì admin có thể dùng ảnh bài từ HTTPS; đây là quyết định tương thích có căn cứ, không tuyên bố mọi nguồn ảnh đều do SPOFY quản lý. Không thêm `unsafe-eval`/script inline để dẹp lỗi console. Bài/comment được render thành dữ liệu an toàn và KaTeX không tin cậy.
 
+Storage cloud hiện mặc định từ chối context thiếu/không hợp lệ và artifact có context `local`/`dev`. Với Preview còn cần cờ xác nhận DB và deploy ID do nền tảng cung cấp; không fallback sang store production khi thiếu cấu hình. Dùng build PR Deploy Preview gốc của Netlify, không upload artifact build local bằng CLI draft. Backend local Node/SQLite không dùng adapter cloud này và không bị thay đổi. Production vẫn giữ store bền vững cũ; handler/DB pool tiếp tục được tái sử dụng trong mỗi deployment.
+
 ## 4. Chưa đủ bằng chứng hoặc cần chủ dự án cấu hình
 
 | Phần còn thiếu | Cần gì để xác nhận | Trạng thái trung thực |
@@ -40,7 +45,7 @@ CSP `connect-src` thu hẹp còn self khi kho ảnh đã đóng gói đủ. `img
 | Danh tính tác giả và alt sâu hơn | Thông tin biên tập/nhận diện do chủ câu lạc bộ xác nhận | Giữ tên tác giả hiện hữu; không đoán người trong ảnh. |
 | MFA admin | Enrollment, recovery và kiểm thử riêng | Mới là đề xuất, chưa triển khai. |
 | Báo cáo bình luận tự động | Quy trình/queue quản trị và chính sách xử lý được duyệt | Hiện hướng dẫn gửi URL qua Facebook để admin xem xét; không có nút report giả hoặc xóa bình luận thật. |
-| Production Netlify | Quyền tài khoản, Preview đã kiểm tra và chủ dự án duyệt | Chưa push/deploy/merge hay thay dữ liệu production trong đợt công việc này. |
+| Production Netlify | Preview đã kiểm tra, cấu hình dịch vụ và chủ dự án duyệt | Ngày 20/10 đã được duyệt đăng nhập GitHub và dry-run push thành công; tại thời điểm cập nhật chưa push/deploy/merge hoặc thay dữ liệu production. |
 | Thiết bị thật và độ ổn định dài hạn | Windows/Android/iOS thật, giám sát host/delivery và backup | Browser viewport/kiểm thử local không thay thế xác nhận thiết bị hay cam kết uptime. |
 
 ## 5. Bảo toàn và triển khai

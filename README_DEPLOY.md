@@ -2,7 +2,7 @@
 
 Website chính: **https://spofysofia.netlify.app/**. Repository đang dùng: **https://github.com/ngductrun-svg/spofy**. Làm việc tiếp trong project Netlify hiện tại; không cần tạo website hoặc tài khoản admin production mới.
 
-Bản nâng cấp nằm trên nhánh `codex/spofy-quality-20261018`. Chưa push nhánh, tạo Pull Request hoặc triển khai từ tài khoản của bạn trong lần bàn giao này. Hãy xem thử trước; **chưa bấm Merge/Publish production**.
+Bản nâng cấp nằm trên nhánh `codex/spofy-quality-20261018`. Tại lần rà soát ngày **20/10/2026**, đăng nhập GitHub đã được duyệt và kiểm tra quyền push bằng `--dry-run` thành công; chưa push nhánh, tạo Pull Request hoặc triển khai. Đăng nhập/kiểm tra quyền không đồng nghĩa đã tải mã lên. Hãy xem thử trước; **chưa bấm Merge/Publish production**.
 
 ## 1. Chuẩn bị bằng GitHub Desktop, không cần gõ CMD
 
@@ -45,6 +45,10 @@ Sau khi dữ liệu preview đã được chuẩn bị, trong GitHub Desktop ch�
 Netlify có thể tạo Deploy Preview cho PR của repository đã liên kết. Mở liên kết ở phần kiểm tra của PR hoặc Netlify → **Deploys → Deploy Preview**. Nếu không có, xem mục **Continuous deployment → Branches and deploy contexts** để bật Deploy Previews. [Hướng dẫn chính thức](https://docs.netlify.com/deploy/deploy-types/deploy-previews/).
 
 Mã nguồn tạo shell HTML và bản ghi context riêng sau build để Function biết đây là preview. Khi chưa có xác nhận dữ liệu, build dừng với `PREVIEW_DATA_NOT_CONFIRMED`; hãy xem giao diện bằng bản local trước. Nếu một preview chạy tới runtime khi chưa được xác nhận, API vẫn trả 503 trước kết nối DB. Không chữa lỗi này bằng cách trỏ preview vào database production.
+
+**Dùng build Deploy Preview gốc của Netlify từ PR.** Không upload thư mục `dist` hoặc Functions đã build local bằng CLI draft để thay bước này: bản ghi context của build local là `local`, không chứng minh được môi trường cloud. Cloud API hiện từ chối context thiếu/không hợp lệ hoặc `local`/`dev` trước khi khởi tạo storage và database. Backend Node/SQLite chạy trên máy vẫn hoạt động độc lập.
+
+Ảnh bài viết do admin upload được cách ly riêng: production vẫn dùng site-wide store **`spofy-article-media`** như trước; Deploy Preview/branch deploy dùng **`getDeployStore`**, được Netlify gắn với deploy ID hiện tại. Thiếu context/deploy ID sẽ báo dịch vụ chưa sẵn sàng, không chuyển sang store production. Không cần tự chép deploy ID hay token vào frontend. Ảnh upload của một Preview **không tự chuyển sang lần deploy Preview tiếp theo**; hãy dùng lại fixture/ảnh kiểm thử phù hợp hoặc tải lại ảnh trong môi trường thử. Cách ly này không thay đổi 1.471 ảnh tư liệu tĩnh trong `public/archive`. [Phạm vi store theo tài liệu Netlify](https://docs.netlify.com/build/data-and-storage/netlify-blobs/#getstore).
 
 ## 4. Cấu hình email và biến môi trường
 
