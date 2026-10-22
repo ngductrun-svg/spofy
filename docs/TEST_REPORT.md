@@ -2,7 +2,9 @@
 
 Ngày hoàn tất: **19/10/2026, giờ Việt Nam**. Source gốc `9869d95`, nhánh cục bộ `codex/spofy-quality-20261018`. Production chỉ được đọc trang/API công khai để đối chiếu. Không sửa tài khoản, bài viết, bình luận hoặc database thật; không gửi email thật.
 
-**Rà soát tiếp ngày 20/10/2026:** bổ sung cách ly kho ảnh upload của Preview và chạy lại toàn bộ backend: **69/69 đạt**. Kết quả giao diện, viewport, HTTP, bundle và build được ghi bên dưới là của lượt 19/10 trừ khi có ngày khác; chưa coi bản sửa storage là đã được kiểm chứng bằng deploy thật.
+**Rà soát tiếp ngày 22/10/2026:** bổ sung nhà cung cấp Brevo bên cạnh Resend mặc định; toàn bộ **76/76 test backend đạt**, không bỏ qua, Node 24.22.0/Windows, khoảng 14,6 giây. Typecheck và lint đạt. Đây là kiểm thử email qua HTTP giả/transport cô lập, chưa phải gửi mail thật. Kết quả giao diện, viewport, HTTP, bundle và build bên dưới là lượt 19/10 trừ khi có ngày khác.
+
+**Cloud đã kiểm chứng:** native Deploy Preview `6ad8b7dbfc24a643592c9dcb` của commit `3f45601` đã ready ngày 21/10; 2 Functions và migration mới hoạt động trên nhánh database riêng. Kiểm tra ngày 22/10: health `postgres-blobs`, API admin từ chối khách, dữ liệu sao chép đã vô hiệu hóa, ảnh bìa công khai được đưa vào kho deploy riêng và tải được. Trang chủ, menu/Escape, hero dấu mốc, album/lightbox, trang khoa học và mobile 390px đã được kiểm tra. Production vẫn `9869d95`, chưa merge/publish. Phần Brevo bổ sung ngày 22/10 vẫn cần tài khoản/sender/key thật của chủ site trước khi kiểm thử gửi/nhận.
 
 ## Kết quả chạy thực tế
 
@@ -12,13 +14,15 @@ Ngày hoàn tất: **19/10/2026, giờ Việt Nam**. Source gốc `9869d95`, nh�
 | `pnpm typecheck` | Đạt | TypeScript trên dependency graph ứng dụng từ `src/main.tsx`; các demo shader cũ không được ứng dụng import không nằm trong graph này |
 | `pnpm lint` | Đạt | Source frontend/backend/Functions/scripts/tests; kiểm tra cú pháp và các lỗi an toàn JS đã cấu hình, không phải kiểm toán bảo mật độc lập |
 | `pnpm build` | Đạt | Kiểm tra context, catalog, hash ảnh, dữ liệu câu hỏi; Vite; tạo HTML metadata và context riêng của Functions |
-| `pnpm test` / `node --test server-tests/*.test.mjs` | **69/69 đạt**, 0 bỏ qua | Lần chạy lại 20/10 sau sửa storage, khoảng 13,8 giây; trước đó 19/10 đạt 65/65, Node 24.22.0/Windows |
+| `pnpm test` / `node --test server-tests/*.test.mjs` | **76/76 đạt**, 0 bỏ qua | Lần chạy lại 22/10 sau thêm 7 test mail provider, khoảng 14,6 giây; 20/10 đạt 69/69, 19/10 đạt 65/65 |
 | Lint và diff-check phần sửa storage | Đạt ngày 20/10 | Hai file Functions/storage và test cách ly; không thay thế build/deploy cloud thật |
 | Bundle hai Netlify Functions bằng esbuild | Đạt | `spofy.mjs` và `page.mjs`, target Node 24; chưa phải lần deploy lên Netlify |
 | HTTP local 9 đường dẫn | Đạt | HTML có title/canonical trước JavaScript, bài không tồn tại 404, trang tài khoản noindex, API không trả HTML, source server không công khai |
 | `git diff --check` | Đạt | Không có lỗi whitespace; Git có cảnh báo chuẩn hóa LF/CRLF trên Windows |
 
-69 test gồm: tài khoản/audit 7; helper admin 10; ảnh 1; auth lifecycle 15; context triển khai/biên tập 2; HTTP security 9; cloud adapter 7; metadata 8; câu hỏi đã xác minh 6; **cách ly storage 4**. SQLite dùng database tạm. PostgreSQL dùng **PGlite, engine PostgreSQL trong môi trường kiểm thử**; các lời gọi kho Blobs và email được kiểm thử bằng adapter/transport cô lập. Chưa kiểm chứng backend Netlify/Resend đang triển khai thật.
+76 test gồm: tài khoản/audit 7; helper admin 10; ảnh 1; auth lifecycle 15; context triển khai/biên tập 2; HTTP security 9; cloud adapter 7; metadata 8; câu hỏi đã xác minh 6; cách ly storage 4; **nhà cung cấp email 7**. SQLite dùng database tạm. PostgreSQL trong suite dùng **PGlite, engine PostgreSQL trong môi trường kiểm thử**; kho Blobs và email trong suite dùng adapter/transport cô lập. Kiểm chứng cloud riêng được ghi ở đầu báo cáo; chưa thử email Resend/Brevo thật.
+
+Bảy test email ngày 22/10 kiểm tra đúng endpoint/key/định dạng Brevo, liên kết xác minh/đặt lại dạng fragment, sender đơn/hiển thị, buộc mọi thư Preview về hộp thư test, chặn cấu hình sai/header injection, lỗi/429/JSON sai/thiếu acknowledgment không lộ secret hoặc chuyển provider, và giữ Resend mặc định/transport local. Không có lời gọi email ra Internet trong suite.
 
 Bốn test storage mới xác nhận: tên store production không đổi; thao tác upload/xóa Preview không chạm store production kể cả khi cùng process từng tạo adapter production; context thiếu/local/dev hoặc Preview chưa xác nhận dừng trước store factory; SDK `@netlify/blobs` thật yêu cầu deploy ID và tạo namespace deploy khác namespace site. Test SDK chỉ tạo đối tượng bằng context giả trong subprocess, không gọi đọc/ghi/xóa qua mạng. Lần chạy suite đầu ngày 20/10 bị sandbox chặn localhost `EACCES` ở 14 test HTTP; sau cấp quyền mạng cho localhost, cùng suite đạt 69/69. Không sửa code để bỏ qua các test đó.
 
@@ -76,8 +80,8 @@ Không tự phục hồi phần khoa học bài hot drink. Sửa hiển thị ti
 
 ## Còn cần cấu hình hoặc xác minh
 
-1. Ngày 19/10, kiểm tra quyền push thất bại vì thiếu phiên GitHub. Ngày 20/10, đăng nhập đã được duyệt và dry-run kiểm tra push thành công; tại thời điểm cập nhật báo cáo này **chưa push, tạo PR, Deploy Preview hay publish production**. Chỉ cập nhật trạng thái này sau khi có kết quả thao tác thật.
-2. Xác nhận database preview riêng, không có dữ liệu người dùng thật chưa ẩn danh, rồi đặt `PREVIEW_DATA_ISOLATED=true` đúng context và rebuild. Cờ là xác nhận quản trị, không tự chứng minh cách ly DB. Backup trước migration; rollback deploy không tự rollback DB/Blobs/biến môi trường.
-3. Cấu hình server `RESEND_API_KEY`, `MAIL_FROM`, `APP_ORIGIN`; preview dùng `MAIL_MODE=test` và `MAIL_TEST_RECIPIENT` do chủ dự án kiểm soát. Chưa xác nhận nhận email thật. HIBP thật cũng chưa chạy qua provider trong QA này.
+1. Nhánh đã push, [PR #1](https://github.com/ngductrun-svg/spofy/pull/1) còn mở và [Preview riêng tư](https://deploy-preview-1--spofysofia.netlify.app/) đã triển khai thành công. **Chưa publish production**. Native build tiếp theo chỉ dùng nhánh đã làm sạch, không trỏ tới production.
+2. Nhánh database `codex/spofy-quality-20261018` đã xác minh khác production và làm sạch; kiểm tra sau migration có 0 tài khoản sao chép sử dụng được, 0 admin sao chép, không còn phiên/bình luận/log đăng nhập cũ. Cờ chỉ đặt cho nhánh này, không mọi Preview. Cờ không tự chứng minh cách ly DB. Không reset nhánh vì sẽ sao chép lại dữ liệu production; rollback deploy không tự rollback DB/Blobs/biến môi trường.
+3. Cấu hình `MAIL_PROVIDER=brevo` + `BREVO_API_KEY`, hoặc Resend mặc định + `RESEND_API_KEY`; cả hai cần `MAIL_FROM`, `APP_ORIGIN`. Preview dùng `MAIL_MODE=test` và `MAIL_TEST_RECIPIENT` do chủ dự án kiểm soát. Chưa xác nhận nhận email thật, chưa thử admin/reader đăng nhập cloud bằng tài khoản test mới. HIBP thật cũng chưa chạy qua provider trong QA này.
 4. Cung cấp bản gốc bài đồ uống để khôi phục phần thiếu/chốt chuyên mục. MFA và hàng đợi báo cáo bình luận mới được đề xuất, chưa triển khai.
 5. Kiểm tra thiết bị thật, zoom 200%, reduced-motion, GPU fallback và frame time. Làm theo `README_DEPLOY.md`; không kéo riêng `dist` lên Netlify.

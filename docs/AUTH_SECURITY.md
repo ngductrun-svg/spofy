@@ -23,15 +23,17 @@ Trong **Netlify → Environment variables**, đặt biến server với phạm v
 | Biến | Giá trị / nơi lấy |
 |---|---|
 | `APP_ORIGIN` | Origin HTTPS chính xác, ví dụ `https://spofysofia.netlify.app`, không có đường dẫn. |
-| `RESEND_API_KEY` | API key lấy trong tài khoản Resend do chủ website quản lý. Không đưa key vào GitHub/chat. |
-| `MAIL_FROM` | Địa chỉ gửi đã xác minh trong Resend, ví dụ `SPOFY <noreply@ten-mien-ban-quan-ly>`. Phải cấu hình domain/DNS theo Resend. |
+| `MAIL_PROVIDER` | `resend` (mặc định) hoặc `brevo`. Không tự chuyển sang dịch vụ khác nếu gửi lỗi. |
+| `RESEND_API_KEY` | Chỉ dùng khi chọn Resend; lấy trong tài khoản chủ website. Không đưa key vào GitHub/chat. |
+| `BREVO_API_KEY` | Chỉ dùng khi chọn Brevo; API key do chủ site tự nhập riêng tư trong Netlify. Không dùng SMTP key hoặc MCP key. |
+| `MAIL_FROM` | Email hoặc `SPOFY <email>` đã xác minh trong dịch vụ đã chọn. Resend cần domain/DNS; Brevo có thể dùng miền thay thế khi sender là Gmail, cần tài khoản được phép gửi. |
 | `PASSWORD_BREACH_CHECK` | `hibp` cho kiểm tra mật khẩu rò rỉ; `local-blocklist` chỉ kiểm tra danh sách phổ biến và không thể kết luận chưa rò rỉ. |
 
 Không đặt biến kiểm tra `MAIL_MODE=test`/`MAIL_TEST_RECIPIENT` vào production. Production mặc định kiểm tra HIBP nếu không ghi đè `PASSWORD_BREACH_CHECK`. Bản local mặc định dùng blocklist để hoạt động khi không có mạng. HIBP chỉ nhận 5 ký tự đầu SHA-1, có yêu cầu padding; không nhận mật khẩu hoặc hash đầy đủ. Dịch vụ lỗi/timeout trả 503, không tự bỏ qua rồi nói đã kiểm tra.
 
-Resend được gọi từ server qua REST và timeout 10 giây; không thêm SDK hay gửi mail thật trong kiểm thử. Chưa có key/sender xác minh của chủ website nên **chưa kiểm chứng gửi/nhận email qua Resend trên Netlify**. Thiếu cấu hình: đăng ký, quên mật khẩu, gửi lại báo `MAIL_NOT_CONFIGURED`; đăng nhập tài khoản hiện có và đọc bài vẫn hoạt động. Phản hồi 2xx của nhà cung cấp chỉ xác nhận họ tiếp nhận, không đảm bảo thư đã vào hộp thư. HTTP 202 công khai của SPOFY cũng chỉ xác nhận tiếp nhận yêu cầu, không xác nhận thư đã được gửi; cần xem delivery/bounce và log mã lỗi trong dashboard.
+Resend/Brevo được gọi từ server qua REST và timeout 10 giây; không thêm SDK hay gửi mail thật trong kiểm thử. Endpoint cố định theo lựa chọn, chặn redirect để khóa không bị chuyển tới máy chủ khác; không tự thử provider dự phòng gây trùng thư. Sender/recipient phải là một địa chỉ hợp lệ; Brevo cần phản hồi `messageId`, Resend cần `id` trước khi coi dịch vụ đã tiếp nhận. Provider lạ, key/sender thiếu hoặc sai đều tắt mail trước khi gọi mạng. Chưa có key/sender xác minh của chủ website nên **chưa kiểm chứng gửi/nhận email qua dịch vụ thật trên Netlify**. Thiếu cấu hình: đăng ký, quên mật khẩu, gửi lại báo `MAIL_NOT_CONFIGURED`; đăng nhập tài khoản hiện có và đọc bài vẫn hoạt động. Phản hồi 2xx của nhà cung cấp chỉ xác nhận họ tiếp nhận, không đảm bảo thư đã vào hộp thư. HTTP 202 công khai của SPOFY cũng chỉ xác nhận tiếp nhận yêu cầu, không xác nhận thư đã được gửi; cần xem delivery/bounce và log mã lỗi trong dashboard.
 
-Tài liệu API chính thức: [Resend Send Email](https://resend.com/docs/api-reference/emails/send-email), [HIBP Pwned Passwords](https://haveibeenpwned.com/API/v3#PwnedPasswords).
+Tài liệu API chính thức: [Resend Send Email](https://resend.com/docs/api-reference/emails/send-email), [Brevo Send Email](https://developers.brevo.com/reference/send-transac-email), [HIBP Pwned Passwords](https://haveibeenpwned.com/API/v3#PwnedPasswords). [Hướng dẫn Brevo cho chủ website](EMAIL_BREVO.md).
 
 ## Deploy Preview an toàn
 

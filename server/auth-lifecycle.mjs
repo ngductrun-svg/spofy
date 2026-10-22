@@ -27,6 +27,19 @@ export async function validateNewPassword(value, { mode = 'local-blocklist', fet
   if (body.split(/\r?\n/).some(line => { const [suffix, count] = line.split(':'); return suffix?.toUpperCase() === hash.slice(5) && Number(count) > 0; })) fail(422, 'BREACHED_PASSWORD', 'Mật khẩu này từng xuất hiện trong dữ liệu rò rỉ. Vui lòng chọn mật khẩu khác.', { password: 'Hãy dùng mật khẩu chưa từng sử dụng ở nơi khác.' });
 }
 
+const validMailbox = value => typeof value === 'string' && value.length <= 254 && /^[^\s@<>,;\x00-\x1f\x7f]+@[^\s@<>,;\x00-\x1f\x7f]+\.[^\s@<>,;\x00-\x1f\x7f]+$/u.test(value);
+function mailSender(value) {
+  if (typeof value !== 'string' || value.length > 400 || /[\x00-\x1f\x7f]/u.test(value)) return null;
+  const from = value.trim();
+  if (validMailbox(from)) return { email: from, name: 'SPOFY' };
+  const match = /^([^<>]+)\s*<([^<>]+)>$/u.exec(from);
+  if (!match) return null;
+  let name = match[1].trim();
+  if (name.startsWith('"') && name.endsWith('"')) name = name.slice(1, -1).trim();
+  const address = match[2].trim();
+  return name && name.length <= 120 && !/[",;]/u.test(name) && validMailbox(address) ? { email: address, name } : null;
+}
+
 export function createEmailService({ env = {}, fetcher = fetch, transport, appOrigin, cloud = false } = {}) {
   let origin;
   try {
@@ -35,8 +48,15 @@ export function createEmailService({ env = {}, fetcher = fetch, transport, appOr
     origin = value.origin;
   } catch { origin = null; }
   const preview = env.CONTEXT && env.CONTEXT !== 'production';
-  const testRecipient = typeof env.MAIL_TEST_RECIPIENT === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.MAIL_TEST_RECIPIENT) ? env.MAIL_TEST_RECIPIENT : null;
-  const configured = Boolean(origin && (transport || (env.RESEND_API_KEY && env.MAIL_FROM && (!preview || (env.MAIL_MODE === 'test' && testRecipient)))));
+  const provider = typeof env.MAIL_PROVIDER === 'string' ? env.MAIL_PROVIDER.trim().toLowerCase() || 'resend' : env.MAIL_PROVIDER == null ? 'resend' : null;
+  const supported = provider === 'resend' || provider === 'brevo';
+  const apiKey = supported ? env[provider === 'brevo' ? 'BREVO_API_KEY' : 'RESEND_API_KEY'] : null;
+  const sender = mailSender(env.MAIL_FROM);
+  const testRecipient = validMailbox(env.MAIL_TEST_RECIPIENT) ? env.MAIL_TEST_RECIPIENT : null;
+  const hasKey = typeof apiKey === 'string' && Boolean(apiKey.trim()) && !/[\r\n]/u.test(apiKey);
+  // Test transports never connect to a provider; actual Preview mail is always
+  // redirected to the one owner-controlled mailbox, regardless of provider.
+  const configured = Boolean(origin && supported && (transport || (hasKey && sender && (!preview || (env.MAIL_MODE === 'test' && testRecipient)))));
   return {
     configured,
     assertConfigured() { if (!configured) fail(503, 'MAIL_NOT_CONFIGURED', 'Chức năng email chưa được cấu hình. Bạn vẫn có thể đọc bài và đăng nhập tài khoản hiện có.'); },
@@ -49,10 +69,16 @@ export function createEmailService({ env = {}, fetcher = fetch, transport, appOr
         const message = { from: env.MAIL_FROM, to: preview && !transport ? testRecipient : to, subject, text };
         if (transport) await transport(message);
         else {
-          const response = await fetcher('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify(message), signal: AbortSignal.timeout(10_000) });
+          if (!validMailbox(message.to)) throw new Error('Invalid mail recipient');
+          const brevo = provider === 'brevo';
+          const endpoint = brevo ? 'https://api.brevo.com/v3/smtp/email' : 'https://api.resend.com/emails';
+          const headers = { 'Content-Type': 'application/json', ...(brevo ? { 'api-key': apiKey } : { Authorization: `Bearer ${apiKey}` }) };
+          const body = brevo ? { sender, to: [{ email: message.to }], subject, textContent: text } : message;
+          const response = await fetcher(endpoint, { method: 'POST', headers, body: JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(10_000) });
           if (!response.ok) throw new Error('Mail service unavailable');
           const result = await response.json();
-          if (typeof result.id !== 'string' || !result.id) throw new Error('Mail service did not accept the message');
+          const messageId = brevo ? result.messageId : result.id;
+          if (typeof messageId !== 'string' || !messageId.trim()) throw new Error('Mail service did not accept the message');
         }
       } catch { fail(503, 'MAIL_DELIVERY_FAILED', 'Chưa gửi được email. Vui lòng thử lại sau; yêu cầu này chưa được xác nhận thành công.'); }
     },

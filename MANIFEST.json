@@ -4,8 +4,8 @@
     "sha256": "e03672abb134ef88b4ffafe3ebbbc2393c1ba304e397013ae6ee5f7ecf70acea"
   },
   ".env.example": {
-    "bytes": 1470,
-    "sha256": "7bce1ea20e25b115bc403672b8a529df48ec2e27d890f6c1ce5edf07dca305d3"
+    "bytes": 1579,
+    "sha256": "e3918da40e8667e7ffd85a360cd0043a60fac2ffee159d6e9e9fb5cf56b04a39"
   },
   ".gitignore": {
     "bytes": 158,
@@ -52,12 +52,16 @@
     "sha256": "dd5055e5f997d86f94345d2e5931a0353ea6647ec47eea080b41fe0ae1740dae"
   },
   "docs/AUTH_SECURITY.md": {
-    "bytes": 11272,
-    "sha256": "3fae6a31e287577ed73a7cd0d306e9ce86b308155ae87a548e44fe3fad821998"
+    "bytes": 12193,
+    "sha256": "895a9e0f93a9d060261feda2481c7d1f8e2b8ac512d57976cb4638366c0d0717"
   },
   "docs/content-editorial-review.md": {
     "bytes": 9608,
     "sha256": "d769ed0069097a9da2dcc7229716525dda1f9d18fee2d12553fa53ac9d4e1ce1"
+  },
+  "docs/EMAIL_BREVO.md": {
+    "bytes": 4469,
+    "sha256": "574d722adae5f9c75de84abcf8473ffdd3237db1181a40edfa78d5917eab4694"
   },
   "docs/qa-evidence/browser-matrix.json": {
     "bytes": 2570,
@@ -116,8 +120,8 @@
     "sha256": "90d60a39aff1bcded6c94be244b4ec7950db00a2b77ca30cd3d85aed1a5e5b5f"
   },
   "docs/TEST_REPORT.md": {
-    "bytes": 11796,
-    "sha256": "48573695dcc7fb8d478052156cd2ca84b3df2d390fc9972a1e98405ca898e69c"
+    "bytes": 13322,
+    "sha256": "51e78078f74ff5f676796d2aa076c1ed8c4e85842d92e79282989eb21d789ff7"
   },
   "docs/upgrade-findings.md": {
     "bytes": 11047,
@@ -128,8 +132,8 @@
     "sha256": "6b27fdae48d6c29b03c7f313f99f9dd476595cf4bf1787aa030a4a609a7d5253"
   },
   "HUONG-DAN-BAN-GIAO.html": {
-    "bytes": 7450,
-    "sha256": "3fd1bfee21fa1759639c671579782d778f47d3a511419ac2931de5aa7da6d404"
+    "bytes": 7398,
+    "sha256": "d31d7155528822ef22b04ef15545a295600fb6ec2340977d26bf6dfd1a02c9d8"
   },
   "index.html": {
     "bytes": 1889,
@@ -12004,8 +12008,8 @@
     "sha256": "be0ce69905fbfc85878da8a88a0a40e9c13eb22d5cef39642b0206563cc87cf1"
   },
   "README_DEPLOY.md": {
-    "bytes": 12384,
-    "sha256": "4b939f49465fb1bf5e81705d20f6a30a1ac9b980f3932b7563619f0228d16900"
+    "bytes": 13651,
+    "sha256": "b2fb4fff5f53ae52d5f18128b10f0aba3d14abb877371bf966c52fec7d5c1f55"
   },
   "scripts/admin-form-bootstrap.mjs": {
     "bytes": 8086,
@@ -12064,8 +12068,8 @@
     "sha256": "341fcd08ecee427404acf3f562874b940942bb1c36dc985c370deb70d4417d94"
   },
   "server/auth-lifecycle.mjs": {
-    "bytes": 12260,
-    "sha256": "b959ad3d7f13aeed1f4266b1310a16a2f4bbb7b6b9f4d8ca07f3b46f7736cdc3"
+    "bytes": 14032,
+    "sha256": "306faa2d538fd0a37c7d986e5f8ab0d0809424a2a7817fec8cbec43658554335"
   },
   "server/auth.mjs": {
     "bytes": 6239,
@@ -12142,6 +12146,10 @@
   "server-tests/http-security.test.mjs": {
     "bytes": 20933,
     "sha256": "065542b91eec1787d2d5b9af3fb9b2d931b80ebeb87b53dd6213a48dd0f1389d"
+  },
+  "server-tests/mail-providers.test.mjs": {
+    "bytes": 8645,
+    "sha256": "3e2b1156d7c6e32b2807610a56c4738c5e97adcbb4bc81ee46a2b69174fbf15b"
   },
   "server-tests/netlify-adapters.test.mjs": {
     "bytes": 2231,

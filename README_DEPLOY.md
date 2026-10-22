@@ -2,7 +2,7 @@
 
 Website chính: **https://spofysofia.netlify.app/**. Repository đang dùng: **https://github.com/ngductrun-svg/spofy**. Làm việc tiếp trong project Netlify hiện tại; không cần tạo website hoặc tài khoản admin production mới.
 
-Bản nâng cấp nằm trên nhánh `codex/spofy-quality-20261018`. Tại lần rà soát ngày **20/10/2026**, đăng nhập GitHub đã được duyệt và kiểm tra quyền push bằng `--dry-run` thành công; chưa push nhánh, tạo Pull Request hoặc triển khai. Đăng nhập/kiểm tra quyền không đồng nghĩa đã tải mã lên. Hãy xem thử trước; **chưa bấm Merge/Publish production**.
+Bản nâng cấp nằm trên nhánh `codex/spofy-quality-20261018`, đã đẩy lên [PR #1](https://github.com/ngductrun-svg/spofy/pull/1). Netlify đã triển khai thành công [bản xem thử riêng tư](https://deploy-preview-1--spofysofia.netlify.app/) ngày 21/10/2026; database nhánh riêng đã được làm sạch trước khi bật, sau migration vẫn không có tài khoản sao chép dùng được. Production vẫn ở commit `9869d95`; **chưa Merge/Publish production**. Phần gửi email thật còn cần chủ site xác minh sender và cấu hình khóa dịch vụ. Nếu chưa có Resend/tên miền, xem [hướng dẫn Brevo](docs/EMAIL_BREVO.md).
 
 ## 1. Chuẩn bị bằng GitHub Desktop, không cần gõ CMD
 
@@ -52,22 +52,26 @@ Mã nguồn tạo shell HTML và bản ghi context riêng sau build để Functi
 
 ## 4. Cấu hình email và biến môi trường
 
-Mở **Project configuration → Environment variables**. Đặt đúng **Deploy Preview** hoặc **Production**; key bí mật chỉ dùng phía server/Functions, không thêm tiền tố `VITE_`.
+Mở **Project configuration → Environment variables**. Với PR #1, dùng ngữ cảnh **nhánh cụ thể** `codex/spofy-quality-20261018`, không bật cờ dữ liệu cho mọi Deploy Preview. Production chỉ cấu hình sau khi được duyệt. Key bí mật chỉ dùng phía server/Functions, không thêm tiền tố `VITE_`.
 
 | Biến | Preview kiểm thử | Production sau khi được duyệt |
 | --- | --- | --- |
 | `APP_ORIGIN` | Origin HTTPS chính xác của preview, không có đường dẫn | `https://spofysofia.netlify.app` |
 | `SITE_ORIGIN` | `https://spofysofia.netlify.app` | Giống preview; đây là canonical công khai |
 | `PREVIEW_DATA_ISOLATED` | `true` **sau khi** kiểm tra DB riêng; cung cấp cho build và Functions | Không cần bật cho production |
-| `RESEND_API_KEY` | Key môi trường test từ Resend do bạn quản lý | Key server phù hợp của bạn |
-| `MAIL_FROM` | Sender đã xác minh trong Resend | Sender đã xác minh |
+| `MAIL_PROVIDER` | `brevo` hoặc `resend`; mặc định `resend` nếu bỏ trống | Nhà cung cấp đã kiểm thử |
+| `RESEND_API_KEY` | Chỉ đặt khi chọn `resend` | Key server của Resend nếu chọn |
+| `BREVO_API_KEY` | Chỉ đặt khi chọn `brevo` | Key server của Brevo nếu chọn |
+| `MAIL_FROM` | Email/sender đã xác minh trong dịch vụ đã chọn | Sender đã xác minh |
 | `MAIL_MODE` | `test` | Để trống/không đặt chế độ test |
 | `MAIL_TEST_RECIPIENT` | Một hộp thư kiểm thử do chính bạn kiểm soát | Không đặt |
 | `PASSWORD_BREACH_CHECK` | `hibp` khi có kết nối; `local-blocklist` chỉ kiểm tra danh sách phổ biến | `hibp` |
 
 Không dùng biến `MAIL_TEST_MODE`: tên mã nguồn sử dụng là **`MAIL_MODE=test`**. Mọi email preview được chuyển tới `MAIL_TEST_RECIPIENT`. Đổi URL preview thì cập nhật `APP_ORIGIN` và redeploy. Sau khi đổi `PREVIEW_DATA_ISOLATED`, cũng cần chạy lại build vì Function đọc bản xác nhận context đã đóng gói khi build, không chỉ biến vừa sửa trên dashboard. Link email được server tạo từ origin này, không có callback OAuth cần đăng ký. Token xác minh dùng `/xac-minh-email#token=…`; token khôi phục dùng `/dat-lai-mat-khau#token=…`.
 
-Resend cần key và sender hợp lệ; tên miền con `spofysofia.netlify.app` không tự cấp cho bạn quyền cấu hình DNS tên miền gửi email. Nếu chưa có sender/domain phù hợp, giữ email tắt và báo rõ phần cần cấu hình, không mua dịch vụ hay giả thông báo đã gửi. Thiếu cấu hình: đăng ký/quên mật khẩu/gửi lại trả 503 rõ ràng; đọc bài và đăng nhập tài khoản hiện có vẫn dùng luồng cũ. Đăng ký mới thành công trả **202**, chưa tự đăng nhập; cần nhận/xác minh email để bình luận. [Chi tiết xác thực](docs/AUTH_SECURITY.md), [Resend Send Email](https://resend.com/docs/api-reference/emails/send-email).
+Resend cần key và tên miền/sender hợp lệ; tên miền con `spofysofia.netlify.app` không cấp quyền cấu hình DNS tên miền gửi email. Brevo là lựa chọn khởi đầu khi chưa có tên miền: xác minh địa chỉ người gửi và chờ dịch vụ cho phép gửi transactional; Brevo có thể thay địa chỉ gửi Gmail bằng miền tạm của họ. Không hứa thư sẽ được phát hoặc tài khoản chắc chắn được duyệt. [Thiết lập Brevo từng bước](docs/EMAIL_BREVO.md), [giới hạn gửi/miền thay thế chính thức](https://help.brevo.com/hc/en-us/articles/14925263522578-Comply-with-Gmail-Yahoo-and-Microsoft-s-requirements-for-email-senders).
+
+Nếu chưa có cấu hình hợp lệ, giữ email tắt: đăng ký/quên mật khẩu/gửi lại trả 503 rõ ràng; đọc bài và đăng nhập tài khoản hiện có vẫn dùng luồng cũ. Không tự đổi nhà cung cấp sau lỗi gửi, tránh gửi trùng hoặc chuyển dữ liệu sang dịch vụ khác. Đăng ký mới thành công trả **202**, chưa tự đăng nhập; cần nhận/xác minh email để bình luận. [Chi tiết xác thực](docs/AUTH_SECURITY.md), [Resend Send Email](https://resend.com/docs/api-reference/emails/send-email), [Brevo Send Email](https://developers.brevo.com/reference/send-transac-email).
 
 Ảnh tư liệu dùng `VITE_ARCHIVE_ASSET_BASE=/archive/`, catalog `/archive-data.json`. Các giá trị công khai này đã có trong `netlify.toml`. Không chép secret vào `VITE_*` vì chúng có thể đi vào bundle trình duyệt.
 
