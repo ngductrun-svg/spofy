@@ -13,10 +13,12 @@ import { ADMIN, READER, PNG, articleFixture } from './helpers.mjs';
 // No test account, article, key or media file reaches the production database.
 const ORIGIN = 'https://spofy-cloud.example.test';
 const migration = await readFile(new URL('../netlify/database/migrations/0001_initial.sql', import.meta.url), 'utf8');
+const authMigration = await readFile(new URL('../netlify/database/migrations/0002_auth_lifecycle.sql', import.meta.url), 'utf8');
 
 async function fixture({ persistent = false } = {}) {
   let engine = new PGlite();
   let clock = Date.now(), handler, nextIp = 1;
+  const mail = [];
   const media = new Map();
   const storage = {
     async put(filename, data, metadata) { media.set(filename, { data: Uint8Array.from(data), metadata: { ...metadata } }); },
@@ -31,15 +33,16 @@ async function fixture({ persistent = false } = {}) {
     query: (sql, params = []) => scoped(engine).query(sql, params),
     transaction: work => engine.transaction(connection => work(scoped(connection))),
   };
-  const start = () => { handler = createCloudHandler({ db, storage, env: { APP_ORIGIN: ORIGIN }, now: () => clock }); };
+  const start = () => { handler = createCloudHandler({ db, storage, env: { APP_ORIGIN: ORIGIN }, now: () => clock, mailTransport: async message => { mail.push(message); } }); };
   try {
     await engine.exec(migration);
+    await engine.exec(authMigration);
     const hash = await hashPassword(ADMIN.password);
     await db.query("INSERT INTO users(id,email,name,password_hash,role,created_at) VALUES($1,$2,$3,$4,'admin',$5)", [randomUUID(), ADMIN.email, ADMIN.name, hash, clock]);
     start();
   } catch (error) { await engine.close(); throw error; }
   const result = {
-    db, media, storage,
+    db, media, storage, mail,
     get now() { return clock; },
     get handle() { return handler; },
     advance(milliseconds) { clock += milliseconds; },
@@ -54,6 +57,7 @@ async function fixture({ persistent = false } = {}) {
       await engine.close();
       engine = new PGlite({ loadDataDir: snapshot });
       await engine.exec(migration);
+      await engine.exec(authMigration);
       start();
     },
     async close() { await engine.close(); },
@@ -92,8 +96,12 @@ class CloudClient {
   async register(account = READER) {
     await this.session();
     const result = await this.request('/api/auth/register', { method: 'POST', data: account });
-    assert.equal(result.status, 201, result.text);
-    return result;
+    assert.equal(result.status, 202, result.text);
+    const token = this.owner.mail.findLast(item => item.to === account.email)?.text.match(/#token=([a-f0-9]{64})/)?.[1];
+    assert.ok(token);
+    const verified = await this.request('/api/auth/verify-email', { method: 'POST', data: { token } });
+    assert.equal(verified.status, 200, verified.text);
+    return verified;
   }
 }
 async function roles(owner) {
@@ -129,8 +137,13 @@ test('cloud PostgreSQL: opaque HTTPS sessions, CSRF and guest/reader/admin permi
   }
   assert.equal((await guest.request('/api/auth/register', mutate({ ...READER, role: 'admin' }))).status, 422);
   assert.equal((await owner.db.query("SELECT count(*) AS total FROM users WHERE role='reader'")).rows[0].total, 0);
-  const registration = await guest.request('/api/auth/register', mutate(READER));
-  assert.equal(registration.status, 201, registration.text);
+  const pending = await guest.request('/api/auth/register', mutate(READER));
+  assert.equal(pending.status, 202, pending.text);
+  assert.equal(pending.json.user, null);
+  assert.equal(guest.cookie, anonymousCookie, 'registration does not authenticate before verification');
+  const token = owner.mail.at(-1).text.match(/#token=([a-f0-9]{64})/)[1];
+  const registration = await guest.request('/api/auth/verify-email', mutate({ token }));
+  assert.equal(registration.status, 200, registration.text);
   assert.equal(registration.json.user.role, 'reader');
   assert.notEqual(guest.cookie, anonymousCookie, 'registration rotates the anonymous session');
   assert.equal((await owner.db.query('SELECT count(*) AS total FROM sessions WHERE token_hash=$1', [digest(anonymousToken)])).rows[0].total, 0);
@@ -155,10 +168,12 @@ test('cloud PostgreSQL: opaque HTTPS sessions, CSRF and guest/reader/admin permi
   // The Netlify owner grants the first cloud admin in the protected database
   // table editor. No browser API can grant this role; every request rechecks it.
   await owner.db.query("UPDATE users SET role='admin' WHERE id=$1", [registration.json.user.id]);
-  assert.equal((await guest.session()).json.user.role, 'admin');
-  assert.equal((await guest.request('/api/admin/users')).status, 200, 'trusted owner role promotion is immediately recognized');
+  assert.equal((await guest.session()).json.user, null, 'role changes revoke existing sessions');
+  await guest.login(READER);
+  assert.equal((await guest.request('/api/admin/users')).status, 200, 'a fresh login is required after trusted role promotion');
   await owner.db.query("UPDATE users SET role='reader' WHERE id=$1", [registration.json.user.id]);
-  assert.equal((await guest.request('/api/admin/users')).status, 403, 'revoking admin also applies to existing authenticated sessions');
+  assert.equal((await guest.request('/api/admin/users')).status, 401, 'revoking admin immediately revokes existing sessions');
+  await guest.login(READER);
   assert.equal((await guest.request('/.netlify/functions/spofy/api/health')).status, 200, 'rewritten function paths are normalized');
   const authenticatedCookie = guest.cookie;
   assert.equal((await guest.request('/api/auth/logout', mutate({}))).status, 200);
@@ -297,7 +312,7 @@ test('cloud PostgreSQL: private account audit, bounded history and durable state
   assert.equal(users.status, 200, users.text); assert.equal(users.json.total, 2);
   assert.equal(users.json.historyRetentionLimit, 10_000);
   assert.ok(Number.isFinite(Date.parse(users.json.trackingStartedAt)));
-  const userKeys = ['id', 'email', 'name', 'role', 'createdAt', 'lastLoginAt', 'loginCount', 'activeSessions'].sort();
+  const userKeys = ['id', 'email', 'name', 'role', 'emailVerified', 'createdAt', 'lastLoginAt', 'loginCount', 'activeSessions'].sort();
   for (const user of users.json.items) assert.deepEqual(Object.keys(user).sort(), userKeys);
   const history = await admin.request('/api/admin/login-events');
   assert.equal(history.status, 200, history.text); assert.equal(history.json.total, 2);

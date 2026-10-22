@@ -5,12 +5,16 @@
 
 [build.environment]
   NODE_VERSION = "24"
-  VITE_ARCHIVE_ASSET_BASE = "https://spofy-archive.ngductrun.chatgpt.site/archive/"
+  VITE_ARCHIVE_ASSET_BASE = "/archive/"
   VITE_ARCHIVE_CATALOG_URL = "/archive-data.json"
   VITE_CLOUD_HOST = "netlify"
 
 [functions]
   node_bundler = "esbuild"
+  included_files = ["netlify/generated/deploy-context.json"]
+
+[functions.page]
+  included_files = ["netlify/generated/page-shell.html", "netlify/generated/deploy-context.json"]
 
 # API and private article media must reach the Function before the SPA rule.
 [[redirects]]
@@ -26,8 +30,16 @@
   force = true
 
 [[redirects]]
+  from = "/"
+  to = "/.netlify/functions/page/"
+  status = 200
+  force = true
+
+# Existing assets are served directly; page URLs receive crawler-readable HTML.
+# API/media rules above always win and must never return a React shell.
+[[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/.netlify/functions/page/:splat"
   status = 200
 
 [[headers]]
@@ -37,7 +49,7 @@
     X-Frame-Options = "DENY"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 
 [[headers]]
   for = "/index.html"

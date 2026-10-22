@@ -1,0 +1,57 @@
+{
+  "measuredAt": "2026-10-19",
+  "entry": "index-DjcfTX11.js",
+  "chunks": [
+    {
+      "file": "index-Cn5lk1hF.js",
+      "bytes": 3424,
+      "gzipBytes": 1101
+    },
+    {
+      "file": "AdminAccounts-I3ryXOKx.js",
+      "bytes": 7425,
+      "gzipBytes": 2635
+    },
+    {
+      "file": "Engagement-CuH6t66s.js",
+      "bytes": 11978,
+      "gzipBytes": 4044
+    },
+    {
+      "file": "AuthPages-BD_qg01T.js",
+      "bytes": 12751,
+      "gzipBytes": 4282
+    },
+    {
+      "file": "science-D-rw-qog.js",
+      "bytes": 19328,
+      "gzipBytes": 6596
+    },
+    {
+      "file": "Admin-CGHSTjak.js",
+      "bytes": 25161,
+      "gzipBytes": 7254
+    },
+    {
+      "file": "App-DqYPj6IO.js",
+      "bytes": 116882,
+      "gzipBytes": 34215
+    },
+    {
+      "file": "index-DjcfTX11.js",
+      "bytes": 206216,
+      "gzipBytes": 66166
+    },
+    {
+      "file": "Formula-CbOu5lAG.js",
+      "bytes": 262073,
+      "gzipBytes": 78102
+    },
+    {
+      "file": "MagneticWord3D-CTkqs1bj.js",
+      "bytes": 453180,
+      "gzipBytes": 119943
+    }
+  ],
+  "note": "Kích thước từng chunk. Không phải tổng byte tải của một trang, điểm Lighthouse hay phép đo FPS."
+}

@@ -6,5 +6,6 @@ export function displayTitle(name: string) {
   return name
     .replace(/^phỏng vấn\b/iu, "Phỏng vấn")
     .replace(/\bFIRST MEETING\b/g, "First Meeting")
-    .replace(/\bGEN\b/g, "Gen");
+    .replace(/\bGEN\b/g, "Gen")
+    .replace(/\b(?:CLUB\s*FAIR|Clubfair|ClubFair)\b/g, "Club Fair");
 }

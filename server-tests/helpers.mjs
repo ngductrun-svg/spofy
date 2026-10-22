@@ -17,9 +17,10 @@ export async function startFixture(options = {}) {
   const mediaDir = join(directory, 'media');
   let clock = Date.now();
   let application;
+  const mail = [];
   const settings = {
     dbPath, mediaDir, distDir: join(directory, 'missing-dist'), appOrigin: ORIGIN,
-    secureCookies: false, now: () => clock, ...options,
+    secureCookies: false, now: () => clock, env: {}, mailTransport: async message => { mail.push(message); }, ...options,
   };
   async function start() {
     application = createApplication(settings);
@@ -34,7 +35,7 @@ export async function startFixture(options = {}) {
   const fixture = {
     get app() { return application; },
     get url() { return `http://127.0.0.1:${application.server.address().port}`; },
-    dbPath, mediaDir,
+    dbPath, mediaDir, mail,
     advance(milliseconds) { clock += milliseconds; },
     async restart() { await application.close(); await start(); },
     async close() {
@@ -84,7 +85,17 @@ export class HttpClient {
   }
   async register(account = READER, extra = {}) {
     await this.session();
-    return this.request('/api/auth/register', { method: 'POST', data: { ...account, ...extra } });
+    const before = this.fixture.mail.length;
+    const registered = await this.request('/api/auth/register', { method: 'POST', data: { ...account, ...extra } });
+    if (registered.status !== 202 || this.fixture.mail.length === before) return registered;
+    const message = this.fixture.mail.findLast(item => item.to === account.email);
+    const token = message?.text.match(/#token=([a-f0-9]{64})/)?.[1];
+    assert.ok(token, 'the isolated mail transport receives a real verification link');
+    // Existing tests need an authenticated reader. They now go through the real
+    // verification endpoint; dedicated lifecycle tests inspect registration itself.
+    const verified = await this.request('/api/auth/verify-email', { method: 'POST', data: { token } });
+    assert.equal(verified.status, 200, verified.text);
+    return { ...verified, registrationResponse: registered };
   }
   async login(account = ADMIN) {
     await this.session();
@@ -123,7 +134,7 @@ export async function setupRoles(fixture) {
   await admin.login();
   const reader = fixture.client();
   const registration = await reader.register();
-  assert.equal(registration.status, 201, registration.text);
+  assert.equal(registration.status, 200, registration.text);
   await reader.session();
   return { guest, admin, reader };
 }

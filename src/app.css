@@ -114,3 +114,6 @@ p { font-size: 16px; line-height: 1.75; color: var(--muted); }
   *, *::before, *::after { animation: none !important; transition: none !important; }
   [data-reveal].reveal-pending { opacity: 1; transform: none; }
 }
+
+/* Route loading and text survive lazy modules, zoom and reduced motion. */
+.route-loading{min-height:65dvh;max-width:70ch;margin:auto;padding:80px 24px;color:#f8eee8}.route-loading strong{font-size:32px}.route-loading button,.route-loading a{display:inline-flex;min-height:44px;align-items:center;margin:12px;padding:10px 18px;background:#ff9b83;color:#211115;border-radius:24px}.story-copy>p,.section-heading>p,.connect-bottom p{font-size:clamp(16px,1.3vw,18px);line-height:1.75}button,a,input,select,textarea{touch-action:manipulation}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #ffbda7;outline-offset:4px}

@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Scene } from "./Scene";
 import { ArchiveImage } from "./ArchiveImage";
 import { archiveAsset, archiveCatalogURL } from "./archiveAssets";
 import { displayTitle } from "./archiveDisplay";
+import { photoAlt, photoSources, activityDescriptions } from "./archivePresentation";
 import { FeaturedHistory } from "./FeaturedHistory";
 import { MotionNumber } from "./MotionNumber";
-import { ScienceIntro } from "./science";
+import { StartHere, WeeklyQuestion, ParticipationFaq } from "./science/Engagement";
+import "./science/science.css";
+const ScienceIntro = lazy(() => import("./science/Public").then(module => ({ default: module.ScienceIntro })));
 import type { CSSProperties } from "react";
 
 type EventGroup = {
@@ -109,7 +112,8 @@ export default function App() {
   const featuredRecords = useMemo(() => featured.map(event => {
     const photo = getCover(event);
     return { id: event.id, name: displayTitle(event.name), year: event.timeline_date.slice(0, 4), dateKind: event.timeline_date_kind,
-      photo: { src: photo ? archiveAsset(photo.image) : "", alt: photo?.alt || event.name, width: photo?.width, height: photo?.height },
+      description: activityDescriptions[event.id],
+      photo: { src: photo ? archiveAsset(photo.image) : "", alt: photo ? photoAlt(photo) : event.name, width: photo?.width, height: photo?.height, srcSet: photo ? photoSources(photo) : undefined },
       photoCount: event.photo_count, source_url: event.source_urls[0] || facebook };
   }), [featured, getCover]);
   const sortedPhotos = useMemo(() => {
@@ -397,7 +401,7 @@ export default function App() {
   }, [data, safePage, pageSize, query, yearFilter, eventFilter, loading, journeyOpen, expandedYears, reducedMotion]);
 
   const renderImage = (photo: Photo, instanceKey: string, className?: string, full = false, interactive = false) => <ArchiveImage
-    src={archiveAsset(full ? photo.image : photo.thumb)} alt={photo.alt || displayTitle(photo.event)}
+    src={archiveAsset(full ? photo.image : photo.thumb)} alt={photoAlt(photo)} srcSet={photoSources(photo)} sizes={full ? "(max-width: 900px) 92vw, 66vw" : "(max-width: 600px) 92vw, (max-width: 1000px) 45vw, 30vw"}
     width={photo.width} height={photo.height} loading={full ? "eager" : "lazy"}
     className={className} fit="contain" interactive={interactive} retryKey={imageRetries[instanceKey] ?? 0}
     onError={() => markImage(instanceKey, true)} onLoad={() => markImage(instanceKey, false)}
@@ -426,12 +430,14 @@ export default function App() {
     <a className="skip-link" href="#story">Đến câu chuyện SPOFY</a>
     <div id="top"><Scene onAlbum={openAlbum} onNavigate={navigateFromMenu} events={heroEvents} loading={loading} eventCount={data?.events.length ?? 0} photoCount={data?.photos.length ?? 0} dateRange={dateRange} /></div>
     <main>
-      <ScienceIntro />
+      <StartHere />
+      <Suspense fallback={<p className="section-wrap" role="status">Đang mở chuyên mục Khoa học…</p>}><ScienceIntro /></Suspense>
+      <WeeklyQuestion />
       <section id="story" className="story section-wrap">
         <div className="section-label" data-reveal><span className="dot" />01 / CHÚNG MÌNH LÀ SPOFY<span>SCIENCE · PEOPLE · CURIOSITY</span></div>
         <div className="story-layout"><div><h2><span className="motion-line" data-reveal>Từ một câu hỏi.</span><span className="motion-line" data-reveal style={{ "--reveal-index": 1 } as CSSProperties}>Đến <em>cả hành trình.</em></span></h2><div className="story-visuals">{[featured[0], featured[2]].filter(Boolean).map((event, index) => {
           const photo = getCover(event);
-          return photo && <figure key={event.id} data-reveal style={{ "--reveal-angle": `${index ? -4 : 4}deg`, "--reveal-z": "-40px", "--reveal-index": index + 2 } as CSSProperties}><ArchiveImage src={archiveAsset(photo.image)} alt={photo.alt || event.name} width={photo.width} height={photo.height} fit="contain" loading="lazy" /><figcaption><a href={`#${event.id}`}>{event.timeline_date.slice(0,4)} · {displayTitle(event.name)} ↗</a></figcaption></figure>;
+          return photo && <figure key={event.id} data-reveal style={{ "--reveal-angle": `${index ? -4 : 4}deg`, "--reveal-z": "-40px", "--reveal-index": index + 2 } as CSSProperties}><ArchiveImage src={archiveAsset(photo.image)} alt={photoAlt(photo)} srcSet={photoSources(photo)} sizes="(max-width: 600px) 90vw, 32vw" width={photo.width} height={photo.height} fit="contain" loading="lazy" /><figcaption><a href={`#${event.id}`}>{event.timeline_date.slice(0,4)} · {displayTitle(event.name)} ↗</a></figcaption></figure>;
         })}</div></div><div className="story-copy" data-reveal style={{ "--reveal-index": 2 } as CSSProperties}><p>Có những điều bắt đầu bằng một câu hỏi: <span>“Vì sao?”</span></p><p>Thành lập ngày 10 tháng 8 năm 2017 tại Trường THPT Chuyên Khoa học Tự nhiên, SPOFY là nơi những người trẻ gặp nhau, thử nghiệm và chia sẻ niềm yêu thích khoa học.</p><p>Từ những buổi gặp mặt đến các hoạt động giao lưu khoa học và Pharos Fair, mỗi bức ảnh lưu lại một phần hành trình. Đi qua từng năm để gặp lại những con người và trải nghiệm đã làm nên SPOFY.</p><a className="text-link" href="#history">Đi qua những dấu mốc<Arrow /></a></div></div>
         <div className="archive-stats" aria-label="Quy mô kho tư liệu"><div><strong>{dateRange}</strong><span>HÀNH TRÌNH TRONG TƯ LIỆU</span></div><div>{data ? <MotionNumber value={data.events.length} /> : <strong>…</strong>}<span>NHÓM SỰ KIỆN / HOẠT ĐỘNG</span></div><div>{data ? <MotionNumber value={data.photos.length} /> : <strong>…</strong>}<span>ẢNH · MỖI TẤM MỘT KÝ ỨC</span></div></div>
         <div className="identity-line"><span>SCIENCE PROPAGANDIZED ORGANIZATION FOR YOUTH</span><span>THPT CHUYÊN KHOA HỌC TỰ NHIÊN · HÀ NỘI</span></div>
@@ -480,6 +486,7 @@ export default function App() {
       </section>
 
       <section id="connect" className="connect section-wrap"><div className="section-label"><span className="dot" />CHƯƠNG TIẾP THEO<span>ĐƯỢC VIẾT CÙNG NHAU</span></div><h2><span className="motion-line" data-reveal>Còn rất nhiều</span><span className="motion-line" data-reveal style={{ "--reveal-index": 1 } as CSSProperties}><em>“Vì sao?”</em> phía trước.</span></h2><div className="connect-bottom" data-reveal style={{ "--reveal-index": 2 } as CSSProperties}><p>Theo dõi những câu chuyện mới<br />và gặp SPOFY trên Facebook.</p><a className="connect-button" href={facebook} target="_blank" rel="noopener noreferrer">Gặp chúng mình<Arrow /></a></div></section>
+      <ParticipationFaq />
     </main>
 
     <footer className="footer section-wrap"><div className="footer-top"><a href="#top" className="footer-logo">SPOFY<span>SCIENCE. PEOPLE. CURIOSITY.</span></a><a href={facebook} target="_blank" rel="noopener noreferrer">Facebook SPOFY ↗</a><a href="#top">Về đầu trang ↑</a></div><details className="credits"><summary>Nguồn tư liệu & cách đọc thời gian</summary><p>Kho ảnh gồm {data ? count(data.photos.length) : "…"} ảnh, chia thành {data ? count(data.events.length) : "…"} nhóm sự kiện / hoạt động trong giai đoạn {dateRange}, lấy từ tệp SPOFY_Xem_anh.html và danh mục ảnh đi kèm. Nguồn ghi nhận ảnh từ page SPOFY và Pharos Fair. Ảnh được tối ưu dung lượng để hiển thị trên web, giữ nguyên nội dung và tỷ lệ.</p><p>Ngày diễn ra và ngày đăng Facebook được lưu riêng. “Chưa xác định” nghĩa là tư liệu chưa nêu rõ ngày diễn ra; một số mốc được suy ra từ bài recap và có ghi chú trong album. Kho tư liệu không khẳng định bao gồm mọi ảnh đã ẩn, đã xóa hoặc chưa truy cập được. Một ảnh đăng lại có thể mang nhiều mã Facebook khác nhau.</p><ul><li><a href={facebook} target="_blank" rel="noopener noreferrer">Page SPOFY · facebook.com/spofy.sofia ↗</a></li><li><a href="https://www.facebook.com/pharos.spofy" target="_blank" rel="noopener noreferrer">Pharos Fair · facebook.com/pharos.spofy ↗</a></li><li><a href={archiveCatalogURL()} download="SPOFY-danh-muc-anh.json">Tải danh mục ảnh, sự kiện & liên kết nguồn · JSON ↓</a></li></ul></details><div className="footer-rule"><span>SPOFY / KÝ ỨC CỦA TRÍ TÒ MÒ</span><span>TƯ LIỆU {dateRange}</span></div></footer>
@@ -492,7 +499,7 @@ export default function App() {
       {currentPhoto && <div className="lightbox-content"><div className="lightbox-header"><span>{scope.kind === "album" ? "ALBUM SPOFY" : "KẾT QUẢ KHO ẢNH"}</span><button type="button" ref={closeButton} onClick={closeModal} aria-label="Đóng album ảnh">Đóng ×</button></div>
         <div className="lightbox-image"><div className="lightbox-frame">
           {previousFrame && <img className="lightbox-previous-image" src={archiveAsset(previousFrame.image)} alt="" aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", opacity: lightboxReady || lightboxFailed ? 0 : 1, transition: reducedMotion ? "none" : "opacity var(--motion-crossfade) var(--ease)" }} />}
-          <ArchiveImage key={currentPhoto.id} src={archiveAsset(currentPhoto.image)} alt={currentPhoto.alt || displayTitle(currentPhoto.event)} width={currentPhoto.width} height={currentPhoto.height} loading="eager" className="lightbox-archive-image" fit="contain" interactive
+          <ArchiveImage key={currentPhoto.id} src={archiveAsset(currentPhoto.image)} alt={photoAlt(currentPhoto)} width={currentPhoto.width} height={currentPhoto.height} loading="eager" className="lightbox-archive-image" fit="contain" interactive
             style={{ position: "absolute", inset: 0, opacity: lightboxReady || lightboxFailed ? 1 : 0, transition: reducedMotion ? "none" : "opacity var(--motion-crossfade) var(--ease)" }}
             onError={() => setLightboxFailedId(currentPhoto.id)}
             onLoad={() => {

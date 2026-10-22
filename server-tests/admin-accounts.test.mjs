@@ -63,7 +63,7 @@ test('account listing and sign-in history reject guests/readers and expose only 
   assert.equal(listing.json.total, 2);
   assert.ok(Number.isFinite(Date.parse(listing.json.trackingStartedAt)));
   assert.equal(listing.json.historyRetentionLimit, 10_000);
-  const expectedUserKeys = ['id', 'email', 'name', 'role', 'createdAt', 'lastLoginAt', 'loginCount', 'activeSessions'].sort();
+  const expectedUserKeys = ['id', 'email', 'name', 'role', 'emailVerified', 'createdAt', 'lastLoginAt', 'loginCount', 'activeSessions'].sort();
   for (const item of listing.json.items) assert.deepEqual(Object.keys(item).sort(), expectedUserKeys);
   const history = await admin.request('/api/admin/login-events');
   assert.equal(history.status, 200, history.text);
@@ -85,7 +85,7 @@ test('registration and successful login are counted once; failures and session c
   await admin.login();
   const reader = fixture.client();
   const registration = await reader.register();
-  assert.equal(registration.status, 201, registration.text);
+  assert.equal(registration.status, 200, registration.text);
   const readerId = registration.json.user.id;
   await reader.session();
   await reader.session();
@@ -94,7 +94,7 @@ test('registration and successful login are counted once; failures and session c
   const firstTime = users.json.items[0].lastLoginAt;
   assert.equal(users.json.items[0].activeSessions, 1);
   const duplicate = await fixture.client().register();
-  assert.equal(duplicate.status, 409);
+  assert.equal(duplicate.status, 202);
   const invalid = await reader.request('/api/auth/login', { method: 'POST', data: { email: READER.email, password: 'WrongPassword!2026' } });
   assert.equal(invalid.status, 401);
   const csrfFailure = await reader.request('/api/auth/login', { method: 'POST', csrf: false, data: { email: READER.email, password: READER.password } });
@@ -144,7 +144,7 @@ test('account search is literal, accent-insensitive and paginated; invalid filte
   for (const [index, name] of ['Nguyễn Minh', 'Đặng Hà', 'STEM 100%_Team'].entries()) {
     fixture.advance(1000);
     const response = await fixture.client().register({ ...READER, email: `member${index}@example.test`, name });
-    assert.equal(response.status, 201, response.text);
+    assert.equal(response.status, 200, response.text);
   }
   let result = await admin.request('/api/admin/users?q=NGUYEN');
   assert.equal(result.json.total, 1);

@@ -1,8 +1,10 @@
+import { publicArticlePresentation } from '../../server/article-display.mjs';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { HttpError, fail } from '../../server/errors.mjs';
 import { CATEGORIES, validateArticle, onlyFields, plain, email, password, fold } from '../../server/validation.mjs';
 import { hashPassword, checkPassword, digest, publicUser, LOGIN_HISTORY_LIMIT } from '../../server/auth.mjs';
 import { inspectImage } from '../../server/image.mjs';
+import { createAuthLifecycle, createEmailService, AUTH_TOKEN_RETENTION_MS } from '../../server/auth-lifecycle.mjs';
 
 const HOUR = 3_600_000;
 const COOKIE = 'spofy_session';
@@ -63,9 +65,11 @@ function verifyMutation(request, session, appOrigin) {
 
 /** Fetch handler for Netlify Functions. Persistence is provided by Postgres and
  * a private Blob store; this module never starts a server or writes local files. */
-export function createCloudHandler({ db, storage, env = {}, now = Date.now }) {
+export function createCloudHandler({ db, storage, env = {}, now = Date.now, mailTransport, mailFetch, passwordFetch }) {
   if (!db?.query || !db?.transaction || !storage?.put || !storage?.get || !storage?.delete) throw new Error('Cloud handler requires database and storage adapters.');
-  const limits = { login: { count: 10, windowMs: 15 * 60_000 }, register: { count: 5, windowMs: HOUR }, comments: { count: 8, windowMs: 10 * 60_000 }, uploads: { count: 100, windowMs: HOUR }, session: { count: 120, windowMs: 60_000 } };
+  const limits = { login: { count: 10, windowMs: 15 * 60_000 }, register: { count: 5, windowMs: HOUR }, reset: { count: 5, windowMs: HOUR }, verify: { count: 12, windowMs: HOUR }, resend: { count: 3, windowMs: HOUR }, comments: { count: 8, windowMs: 10 * 60_000 }, uploads: { count: 100, windowMs: HOUR }, session: { count: 120, windowMs: 60_000 } };
+  const mail = createEmailService({ env, transport: mailTransport, fetcher: mailFetch, cloud: true });
+  const lifecycle = createAuthLifecycle({ db: { ...db, postgres: true }, mail, now, passwordOptions: { mode: env.PASSWORD_BREACH_CHECK ?? (env.CONTEXT === 'production' || env.NODE_ENV === 'production' ? 'hibp' : 'local-blocklist'), fetcher: passwordFetch } });
   let lastPruned = 0;
 
   async function rate(database, key, config, time) {
@@ -80,8 +84,9 @@ export function createCloudHandler({ db, storage, env = {}, now = Date.now }) {
     if (!/^[a-f0-9]{64}$/.test(token ?? '')) return null;
     const session = await first(db, 'SELECT * FROM sessions WHERE token_hash=$1 AND expires_at>$2', [digest(token), time]);
     if (!session) return null;
-    const user = session.user_id ? await first(db, 'SELECT id,email,name,role FROM users WHERE id=$1', [session.user_id]) : null;
+    const user = session.user_id ? await first(db, 'SELECT id,email,name,role,email_verified_at,email_verification_required,auth_version FROM users WHERE id=$1', [session.user_id]) : null;
     if (session.user_id && !user) return null;
+    if (user && (Number(session.auth_version) !== Number(user.auth_version) || session.user_role !== user.role)) { await db.query('DELETE FROM sessions WHERE user_id=$1', [user.id]); return null; }
     return { ...session, user: publicUser(user) };
   }
   async function rotateSession(database, previous, time, userId = null) {
@@ -89,8 +94,9 @@ export function createCloudHandler({ db, storage, env = {}, now = Date.now }) {
     const token = randomBytes(32).toString('hex'), csrf = randomBytes(32).toString('hex');
     const maxAge = userId ? 7 * 24 * 60 * 60 : 24 * 60 * 60;
     const session = { token_hash: digest(token), csrf_token: csrf, user_id: userId, expires_at: time + maxAge * 1000, created_at: time };
-    await database.query('INSERT INTO sessions(token_hash,csrf_token,user_id,expires_at,created_at) VALUES($1,$2,$3,$4,$5)', [session.token_hash, csrf, userId, session.expires_at, time]);
-    session.user = userId ? publicUser(await first(database, 'SELECT id,email,name,role FROM users WHERE id=$1', [userId])) : null;
+    const user = userId ? await first(database, 'SELECT id,email,name,role,email_verified_at,email_verification_required,auth_version FROM users WHERE id=$1', [userId]) : null;
+    await database.query('INSERT INTO sessions(token_hash,csrf_token,user_id,expires_at,created_at,auth_version,user_role) VALUES($1,$2,$3,$4,$5,$6,$7)', [session.token_hash, csrf, userId, session.expires_at, time, user?.auth_version ?? 0, user?.role ?? null]);
+    session.user = publicUser(user);
     return { session, cookie: `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}; Secure` };
   }
   async function recordSignIn(database, userId, eventType, time) {
@@ -137,9 +143,10 @@ export function createCloudHandler({ db, storage, env = {}, now = Date.now }) {
     const headers = new Headers({ 'Cache-Control': 'no-store', 'Netlify-CDN-Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=()' });
     const json = (status, value) => { headers.set('Content-Type', 'application/json; charset=utf-8'); return new Response(JSON.stringify(value), { status, headers }); };
     try {
+      if (['deploy-preview', 'branch-deploy'].includes(env.CONTEXT) && env.PREVIEW_DATA_ISOLATED !== 'true') fail(503, 'PREVIEW_DATA_NOT_CONFIRMED', 'API xem thử đang tắt. Chủ website cần xác nhận database kiểm thử tách biệt trước khi bật.');
       const url = new URL(request.url), time = now();
       const origin = env.APP_ORIGIN ? new URL(env.APP_ORIGIN) : url;
-      if (!['http:', 'https:'].includes(url.protocol) || origin.origin !== url.origin || (env.APP_ORIGIN && (origin.pathname !== '/' || origin.search || origin.hash || origin.username || origin.password))) fail(403, 'ORIGIN_REJECTED', 'Địa chỉ website không khớp cấu hình máy chủ.');
+      if (url.protocol !== 'https:' || origin.origin !== url.origin || (env.APP_ORIGIN && (origin.protocol !== 'https:' || origin.pathname !== '/' || origin.search || origin.hash || origin.username || origin.password))) fail(403, 'ORIGIN_REJECTED', 'Địa chỉ website không khớp cấu hình máy chủ.');
       if (url.protocol === 'https:') headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
       let path; try { path = decodeURIComponent(url.pathname); } catch { fail(400, 'INVALID_PATH', 'Đường dẫn không hợp lệ.'); }
       path = path.replace(/^\/\.netlify\/functions\/spofy(?=\/|$)/, '') || '/';
@@ -153,6 +160,7 @@ export function createCloudHandler({ db, storage, env = {}, now = Date.now }) {
       if (time - lastPruned > HOUR) {
         await db.query('DELETE FROM sessions WHERE expires_at<=$1', [time]);
         await db.query('DELETE FROM rate_limits WHERE window_start<$1', [time - 2 * 24 * HOUR]);
+        await db.query('DELETE FROM auth_tokens WHERE expires_at<$1 OR consumed_at<$1', [time - AUTH_TOKEN_RETENTION_MS]);
         lastPruned = time;
       }
       if (path === '/api/health' && method === 'GET') return json(200, { ok: true, storage: 'postgres-blobs' });
@@ -162,30 +170,45 @@ export function createCloudHandler({ db, storage, env = {}, now = Date.now }) {
           const rotated = await db.transaction(database => rotateSession(database, null, time));
           session = rotated.session; headers.set('Set-Cookie', rotated.cookie);
         }
-        return json(200, { user: session.user, csrfToken: session.csrf_token });
+        return json(200, { user: session.user, csrfToken: session.csrf_token, capabilities: lifecycle.capabilities });
       }
       if (path === '/api/auth/register' && method === 'POST') {
         await rate(db, `register:${ip}`, limits.register, time);
         const body = await readJson(request); onlyFields(body, ['email', 'name', 'password']);
-        const normalizedEmail = email(body.email), name = plain(body.name, 'name', 2, 100); password(body.password);
-        const hash = await hashPassword(body.password), id = randomUUID();
-        let rotated;
-        try {
-          rotated = await db.transaction(async database => {
-            await database.query("INSERT INTO users(id,email,name,password_hash,role,created_at) VALUES($1,$2,$3,$4,'reader',$5)", [id, normalizedEmail, name, hash, time]);
-            const created = await rotateSession(database, session, time, id);
-            await recordSignIn(database, id, 'register', time);
-            return created;
-          });
-        } catch (error) { if (error.code === '23505') fail(409, 'EMAIL_EXISTS', 'Email đã được sử dụng.'); throw error; }
+        const result = await lifecycle.register(body);
+        return json(202, { ...result, user: null, csrfToken: session.csrf_token });
+      }
+      if (path === '/api/auth/forgot-password' && method === 'POST') {
+        await rate(db, `reset:ip:${ip}`, limits.reset, time);
+        const body = await readJson(request); onlyFields(body, ['email']); const normalizedEmail = email(body.email);
+        await rate(db, `reset:email:${digest(normalizedEmail)}`, limits.reset, time);
+        return json(202, await lifecycle.forgot(normalizedEmail));
+      }
+      if (path === '/api/auth/resend-verification' && method === 'POST') {
+        const user = requireUser(session), body = await readJson(request); onlyFields(body, []);
+        await rate(db, `resend:user:${user.id}`, limits.resend, time); await rate(db, `resend:ip:${ip}`, limits.reset, time);
+        return json(202, await lifecycle.resend(user.id));
+      }
+      if (path === '/api/auth/verify-email' && method === 'POST') {
+        await rate(db, `verify:ip:${ip}`, limits.verify, time); const body = await readJson(request); onlyFields(body, ['token']);
+        const userId = await lifecycle.verify(body.token);
+        const rotated = await db.transaction(async database => { const created = await rotateSession(database, session, time, userId); await recordSignIn(database, userId, 'register', time); return created; });
         headers.set('Set-Cookie', rotated.cookie);
-        return json(201, { user: rotated.session.user, csrfToken: rotated.session.csrf_token });
+        return json(200, { user: rotated.session.user, csrfToken: rotated.session.csrf_token, capabilities: lifecycle.capabilities });
+      }
+      if (path === '/api/auth/reset-password' && method === 'POST') {
+        await rate(db, `reset-token:ip:${ip}`, limits.verify, time); const body = await readJson(request); onlyFields(body, ['token', 'password']);
+        const result = await lifecycle.reset(body.token, body.password);
+        const rotated = await db.transaction(database => rotateSession(database, session, time)); headers.set('Set-Cookie', rotated.cookie);
+        return json(200, { ...result, user: null, csrfToken: rotated.session.csrf_token });
       }
       if (path === '/api/auth/login' && method === 'POST') {
         await rate(db, `login:${ip}`, limits.login, time);
         const body = await readJson(request); onlyFields(body, ['email', 'password']);
         const normalizedEmail = email(body.email); password(body.password);
-        await rate(db, `login:email:${digest(normalizedEmail)}`, limits.login, time);
+        // Pair the address with the client bucket; an attacker must not lock
+        // another reader out globally merely by knowing their email address.
+        await rate(db, `login:pair:${ip}:${digest(normalizedEmail)}`, limits.login, time);
         const user = await first(db, 'SELECT * FROM users WHERE email=$1', [normalizedEmail]);
         if (!await checkPassword(body.password, user?.password_hash)) fail(401, 'INVALID_CREDENTIALS', 'Email hoặc mật khẩu không đúng.');
         const loginTime = now();
@@ -215,7 +238,7 @@ export function createCloudHandler({ db, storage, env = {}, now = Date.now }) {
         const clause = where.length ? ` WHERE ${where.join(' AND ')}` : '';
         const total = Number((await first(db, `SELECT count(*) AS total FROM users u${clause}`, args)).total);
         const currentIndex = args.length + 1;
-        const items = (await list(db, `SELECT u.id,u.email,u.name,u.role,u.created_at,u.last_login_at,u.login_count,(SELECT count(*) FROM sessions s WHERE s.user_id=u.id AND s.expires_at>$${currentIndex}) AS active_sessions FROM users u${clause} ORDER BY coalesce(u.last_login_at,u.created_at) DESC,u.id DESC LIMIT $${currentIndex + 1} OFFSET $${currentIndex + 2}`, [...args, time, pageSize, (page - 1) * pageSize])).map(row => ({ ...publicUser(row), createdAt: iso(row.created_at), lastLoginAt: iso(row.last_login_at), loginCount: Number(row.login_count), activeSessions: Number(row.active_sessions) }));
+        const items = (await list(db, `SELECT u.id,u.email,u.name,u.role,u.email_verified_at,u.email_verification_required,u.created_at,u.last_login_at,u.login_count,(SELECT count(*) FROM sessions s WHERE s.user_id=u.id AND s.expires_at>$${currentIndex}) AS active_sessions FROM users u${clause} ORDER BY coalesce(u.last_login_at,u.created_at) DESC,u.id DESC LIMIT $${currentIndex + 1} OFFSET $${currentIndex + 2}`, [...args, time, pageSize, (page - 1) * pageSize])).map(row => ({ ...publicUser(row), createdAt: iso(row.created_at), lastLoginAt: iso(row.last_login_at), loginCount: Number(row.login_count), activeSessions: Number(row.active_sessions) }));
         return json(200, { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)), ...await auditMetadata() });
       }
       if (path === '/api/admin/login-events' && method === 'GET') {
@@ -235,7 +258,7 @@ export function createCloudHandler({ db, storage, env = {}, now = Date.now }) {
         if (category) { args.push(category); where.push(`category=$${args.length}`); }
         if (['1', 'true'].includes(url.searchParams.get('featured'))) where.push('featured=1');
         const clause = where.join(' AND '), total = Number((await first(db, `SELECT count(*) AS total FROM articles WHERE ${clause}`, args)).total);
-        const items = (await list(db, `SELECT ${ARTICLE_COLUMNS} FROM articles WHERE ${clause} ORDER BY published_at DESC,id DESC LIMIT $${args.length + 1} OFFSET $${args.length + 2}`, [...args, pageSize, (page - 1) * pageSize])).map(row => serializeArticle(row, false));
+        const items = (await list(db, `SELECT ${ARTICLE_COLUMNS} FROM articles WHERE ${clause} ORDER BY published_at DESC,id DESC LIMIT $${args.length + 1} OFFSET $${args.length + 2}`, [...args, pageSize, (page - 1) * pageSize])).map(row => publicArticlePresentation(serializeArticle(row, false)));
         return json(200, { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)), categories: CATEGORIES });
       }
       let match = path.match(/^\/api\/articles\/([^/]+)\/comments$/);
@@ -243,7 +266,8 @@ export function createCloudHandler({ db, storage, env = {}, now = Date.now }) {
         const articleId = match[1]; ensureFound(await first(db, "SELECT id FROM articles WHERE id=$1 AND status='published'", [articleId]));
         if (method === 'GET') return json(200, { items: (await list(db, `${COMMENT_SELECT} WHERE c.article_id=$1 AND c.status='visible' ORDER BY c.created_at ASC,c.id ASC LIMIT 500`, [articleId])).map(serializeComment) });
         if (method === 'POST') {
-          const user = requireUser(session), body = await readJson(request); onlyFields(body, ['body']);
+          const user = requireUser(session); if (user.emailVerified === false) fail(403, 'EMAIL_NOT_VERIFIED', 'Vui lòng xác minh email trước khi gửi bình luận.');
+          const body = await readJson(request); onlyFields(body, ['body']);
           const text = plain(body.body, 'body', 3, 2000), fingerprint = digest(fold(text).replace(/\s+/g, ' ')), id = randomUUID();
           const comment = await db.transaction(async database => {
             // A stable user lock closes duplicate/interval races across instances.
@@ -265,7 +289,7 @@ export function createCloudHandler({ db, storage, env = {}, now = Date.now }) {
       if (match && method === 'GET') {
         const article = serializeArticle(ensureFound(await first(db, `SELECT ${ARTICLE_COLUMNS} FROM articles WHERE slug=$1 AND status='published'`, [match[1]])));
         const related = (await list(db, `SELECT ${ARTICLE_COLUMNS} FROM articles WHERE status='published' AND category=$1 AND id<>$2 ORDER BY published_at DESC LIMIT 3`, [article.category, article.id])).map(row => serializeArticle(row, false));
-        return json(200, { article, related });
+        return json(200, { article: publicArticlePresentation(article), related: related.map(publicArticlePresentation) });
       }
       if (path === '/api/admin/articles') {
         const user = requireAdmin(session);

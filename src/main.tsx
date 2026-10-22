@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { RootApp } from "./RootApp";
-import { ScienceProvider } from "./science";
+import { ScienceProvider } from "./science/api";
 import "./app.css";
 import "./archive.css";
 

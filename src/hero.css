@@ -19,7 +19,7 @@
 .spofy-hero-word { position: relative; display: inline-block; font-size: clamp(130px, 20vw, 290px); font-weight: 650; line-height: 1.06; letter-spacing: -.08em; padding-right: .075em; margin: 22px 0 12px; color: #f5eee8; }
 .spofy-hero-word-star { position: absolute; top: .12em; right: -.24em; font-size: .1em; line-height: 1; color: #ffab91; letter-spacing: 0; pointer-events: none; }
 .spofy-hero-tagline { font-size: clamp(24px, 2.8vw, 36px); font-weight: 400; line-height: 1.5; color: #fff1e9; letter-spacing: -.03em; margin-top: 22px; animation: spofy-copy-enter var(--motion-reveal) var(--ease) 100ms both; }
-.spofy-hero-tagline em { font-family: Georgia, 'Times New Roman', serif; color: #ffd2bf; font-weight: 400; }
+.spofy-hero-tagline em { font-family: Lexend, Arial, sans-serif; font-style: normal; color: #ffd2bf; font-weight: 400; }
 .spofy-hero-mobile-break { display: none; }
 .spofy-hero-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; position: relative; z-index: 3; margin-top: auto; padding-top: 54px; padding-bottom: 32px; animation: spofy-copy-enter var(--motion-reveal) var(--ease) 180ms both; }
 .spofy-hero-bottom:focus-within { animation: none; }
@@ -38,7 +38,7 @@
 .spofy-hero-foot { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 0 16px; border-top: 1px solid #e1b4a044; position: relative; z-index: 3; }
 .spofy-hero-subjects { display: flex; align-items: center; flex-wrap: wrap; gap: 22px; }
 .spofy-hero-subjects > span { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #dcc8bd; }
-.spofy-hero-subjects i { font-family: Georgia, serif; font-size: 23px; font-style: normal; color: #ffb094; line-height: 1; }
+.spofy-hero-subjects i { font-family: Lexend, Arial, sans-serif; font-size: 23px; font-style: normal; color: #ffb094; line-height: 1; }
 .spofy-hero-subjects .spofy-hero-dna-label { font-family: Lexend, Arial, sans-serif; font-size: 13px; }
 .spofy-hero-scroll { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 12px; color: #e7cdbf; }
 .spofy-hero-scroll svg { width: 19px; height: 19px; }
@@ -47,7 +47,7 @@
 .spofy-hero-science svg { position: absolute; stroke-width: 1; opacity: .07; }
 .spofy-hero-science .spofy-hero-atom { width: 100px; height: 100px; right: 5%; top: 19%; transform: rotate(-20deg); }
 .spofy-hero-science .spofy-hero-dna { width: 42px; height: 90px; left: 6%; top: 46%; transform: rotate(18deg); }
-.spofy-hero-formula { position: absolute; font-family: Georgia, serif; opacity: .08; color: #ffd2bb; }
+.spofy-hero-formula { position: absolute; font-family: Lexend, Arial, sans-serif; opacity: .08; color: #ffd2bb; }
 .spofy-hero-formula--math { left: 5%; top: 23%; font-size: 56px; transform: rotate(-10deg); }
 .spofy-hero-formula--math > i { font-size: 16px; }
 .spofy-hero-formula--math small { font-size: 20px; margin-left: 5px; }

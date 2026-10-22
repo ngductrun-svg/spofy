@@ -81,3 +81,5 @@
   .featured-memory-reveal[data-reveal] { opacity: 1; transform: none; transition: none; }
   .featured-memory-actions button, .featured-memory-actions a { transition: none; }
 }
+
+.featured-memory-description{font-size:14px;line-height:1.7;color:#e0c9bc;margin:8px 0 12px;max-width:52ch}

@@ -1,5 +1,7 @@
 # Đưa SPOFY lên Netlify — làm bằng trình duyệt
 
+> **Hướng dẫn cũ được giữ để tham khảo.** Với bản nâng cấp 19/10/2026, dùng **[README_DEPLOY.md](README_DEPLOY.md)** cho project `spofysofia` hiện tại, email xác minh và dữ liệu preview riêng. Không làm lại production theo quy trình cũ dưới đây.
+
 Bạn cần tài khoản **GitHub**, **Netlify** và file **SPOFY-Netlify-source.zip** được bàn giao cùng hướng dẫn này. Không cần nhập lệnh CMD. Tài khoản Netlify quản lý máy chủ; tài khoản SPOFY dùng để đọc, bình luận và quản trị website.
 
 Website trên máy bạn ở `127.0.0.1:3000` và website Netlify có dữ liệu riêng. Admin, bài viết và ảnh đã tải lên máy bạn **không tự chuyển sang website online**. Giữ nguyên thư mục dữ liệu cũ để bảo toàn nội dung.
